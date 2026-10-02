@@ -1,0 +1,3540 @@
+{
+  "about": {
+    "what": "The Sapini matter as Clio Manage API v4 request bodies. Send them in the order of the sections below and your matter ends up identical to the one the setup app creates.",
+    "api_base": "https://app.clio.com/api/v4",
+    "request_shape": "Every request body goes inside {\"data\": <body>}. Example: POST /contacts.json with {\"data\": <contacts[0].body>}.",
+    "placeholders": {
+      "rule": "Any string like \"{{...}}\" stands for a numeric Clio id you only know at run time. Replace it with the number (not a string) before sending.",
+      "{{user_id}}": "Your own user: GET /users/who_am_i.json",
+      "{{practice_area_id}}": "The \"Personal Injury\" practice area: GET /practice_areas.json?fields=id,name",
+      "{{stage:<name>}}": "A matter stage you created by hand: GET /matter_stages.json?fields=id,name,practice_area{id,name}",
+      "{{field:<name>}}": "The id returned when you create that custom field (section custom_fields)",
+      "{{contact:<ref>}}": "The id returned when you create the contact with that ref (section contacts)",
+      "{{matter_id}}": "The id returned when you create the matter (section matter)",
+      "{{folder:<name>}}": "The id returned when you create that folder (section folders)",
+      "{{calendar_id}}": "Your own calendar: GET /calendars.json?fields=id,name,type, take the one with type \"UserCalendar\""
+    },
+    "dates": "All dates are already resolved for Friday 2026-10-02. Date-only fields are YYYY-MM-DD; calendar entries and document received_at are UTC.",
+    "rate_limit": "600 requests per minute per token. The whole matter is about 230 requests plus 85 MB of uploads.",
+    "oauth_scopes_needed": "Your Clio developer app needs read/write on: Contacts, Matters, Custom Fields, Documents, Notes (Matters), Communications, Tasks, Calendars, Activities, and read on Users and Practice Areas."
+  },
+  "matter_stages": {
+    "manual_step": true,
+    "why": "The Clio API cannot create matter stages; every write to /matter_stages.json is refused. Create them by hand before anything else.",
+    "where": "Clio: Settings > Matters > Matter stages, under the Personal Injury practice area. A stage under any other practice area makes the matter create fail with 422.",
+    "stages_in_order": [
+      "Intake",
+      "Treatment",
+      "Demand",
+      "Negotiation",
+      "Litigation",
+      "Trial",
+      "Disbursement",
+      "Closed"
+    ],
+    "sapini_stage": "Litigation"
+  },
+  "custom_fields": {
+    "endpoint": "POST /custom_fields.json",
+    "items": [
+      {
+        "body": {
+          "name": "Date of Incident",
+          "parent_type": "Matter",
+          "field_type": "date",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Accident Location",
+          "parent_type": "Matter",
+          "field_type": "text_line",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Case Summary",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Insurance Carrier",
+          "parent_type": "Matter",
+          "field_type": "text_line",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Claim Number",
+          "parent_type": "Matter",
+          "field_type": "text_line",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Policy Limits",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Policy Limits Confirmed",
+          "parent_type": "Matter",
+          "field_type": "checkbox",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Estimated Case Value",
+          "parent_type": "Matter",
+          "field_type": "currency",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Case Value Rationale",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Medical Specials To Date",
+          "parent_type": "Matter",
+          "field_type": "currency",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Wage Loss Claimed",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Liability Assessment",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Treatment Status",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Health Insurance or Lien Holder",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "Prior Related Injuries",
+          "parent_type": "Matter",
+          "field_type": "text_area",
+          "displayed": true
+        }
+      },
+      {
+        "body": {
+          "name": "HIPAA Authorization Received",
+          "parent_type": "Matter",
+          "field_type": "checkbox",
+          "displayed": true
+        }
+      }
+    ]
+  },
+  "contacts": {
+    "endpoint": "POST /contacts.json",
+    "note": "ref is your handle for the {{contact:<ref>}} placeholder; do not send it. ref \"client\" is Justin Sapini, the matter client.",
+    "items": [
+      {
+        "ref": "client",
+        "body": {
+          "type": "Person",
+          "first_name": "Justin",
+          "last_name": "Sapini",
+          "title": "Mr.",
+          "company": "Northwestern Mutual",
+          "date_of_birth": "1995-12-21",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "jsapini.tx@mailbox.test",
+              "default_email": true
+            }
+          ],
+          "phone_numbers": [
+            {
+              "name": "Work",
+              "number": "(845) 358-2214",
+              "default_number": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "20510 Cypress Plaza Parkway, Apt. 3211",
+              "city": "Cypress",
+              "province": "TX",
+              "postal_code": "77433",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "ferrara",
+        "body": {
+          "type": "Person",
+          "first_name": "Anthony",
+          "last_name": "Ferrara",
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "12 Daisy Farm Drive",
+              "city": "Brookfield",
+              "province": "CT",
+              "postal_code": "06804",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "metronorth",
+        "body": {
+          "type": "Company",
+          "name": "Metro-North Commuter Railroad",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "claims@mnr-railroad.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "420 Lexington Avenue",
+              "city": "New York",
+              "province": "NY",
+              "postal_code": "10170",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "csb",
+        "body": {
+          "type": "Company",
+          "name": "Claims Service Bureau",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "adjusters@claimsservicebureau.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "c/o D&D Associates, PO Box 9150",
+              "city": "Garden City",
+              "province": "NY",
+              "postal_code": "11530",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "progressive",
+        "body": {
+          "type": "Company",
+          "name": "Progressive Insurance Company",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "nofault.ny@progressive-claims.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "P.O. Box 2930",
+              "city": "Clinton",
+              "province": "IA",
+              "postal_code": "52733",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "montefiore",
+        "body": {
+          "type": "Company",
+          "name": "Montefiore Nyack Hospital",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "him@montefiorenyack.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "160 N. Midland Avenue",
+              "city": "Nyack",
+              "province": "NY",
+              "postal_code": "10960",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "mcculloch",
+        "body": {
+          "type": "Company",
+          "name": "McCulloch Orthopaedic Surgical Services, PLLC",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "records@mccullochortho.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "3225 Westchester Avenue",
+              "city": "Bronx",
+              "province": "NY",
+              "postal_code": "10451",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "capiola",
+        "body": {
+          "type": "Person",
+          "first_name": "David",
+          "last_name": "Capiola",
+          "title": "Dr.",
+          "company": "McCulloch Orthopaedic Surgical Services, PLLC",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "dcapiola@mccullochortho.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "451 Main Street, 2nd Floor",
+              "city": "New Rochelle",
+              "province": "NY",
+              "postal_code": "10801",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "rocklandchiro",
+        "body": {
+          "type": "Company",
+          "name": "Advanced Rockland Chiropractic Offices, P.C.",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "records@advancedrocklandchiro.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "265 N. Main Street, Suite A",
+              "city": "Spring Valley",
+              "province": "NY",
+              "postal_code": "10977",
+              "country": "United States"
+            }
+          ]
+        }
+      },
+      {
+        "ref": "sportscare",
+        "body": {
+          "type": "Company",
+          "name": "SportsCare Physical Therapy of New York",
+          "email_addresses": [
+            {
+              "name": "Work",
+              "address": "records@sportscareny.test",
+              "default_email": true
+            }
+          ],
+          "addresses": [
+            {
+              "name": "Work",
+              "street": "410 Airport Executive Park",
+              "city": "Nanuet",
+              "province": "NY",
+              "postal_code": "10954",
+              "country": "United States"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "matter": {
+    "endpoint": "POST /matters.json",
+    "note": "matter_stage must be sent together with practice_area, or Clio answers 422.",
+    "body": {
+      "client": {
+        "id": "{{contact:client}}"
+      },
+      "description": "Sapini, Justin — MVA (Cedar St & Garden St, New Rochelle)",
+      "status": "Open",
+      "open_date": "2023-05-07",
+      "statute_of_limitations": "2026-04-22",
+      "practice_area": {
+        "id": "{{practice_area_id}}"
+      },
+      "matter_stage": {
+        "id": "{{stage:Litigation}}"
+      },
+      "custom_field_values": [
+        {
+          "custom_field": {
+            "id": "{{field:Date of Incident}}"
+          },
+          "value": "2023-04-23"
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Accident Location}}"
+          },
+          "value": "Cedar Street at its intersection with Garden Street, New Rochelle, Westchester County, NY"
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Case Summary}}"
+          },
+          "value": "Sideswiped by a Metro-North utility vehicle on Cedar Street, New Rochelle. Both shoulders, both knees, and a head injury."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Insurance Carrier}}"
+          },
+          "value": "Metro-North Commuter Railroad, SELF-INSURED. Claims administered by Claims Service Bureau. Client's own no-fault: Progressive Insurance Company, P.O. Box 2930, Clinton, IA 52733."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Claim Number}}"
+          },
+          "value": "SIR068120 (Metro-North / Claims Service Bureau)"
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Policy Limits}}"
+          },
+          "value": "Defendant liability: $100,000 / $300,000\nClient UM/UIM: $25,000 / $50,000\nNo-fault: $50,000"
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Policy Limits Confirmed}}"
+          },
+          "value": true
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Estimated Case Value}}"
+          },
+          "value": 375000.0
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Case Value Rationale}}"
+          },
+          "value": "Economics alone come to $332,400: $118,400 in specials and $214,000 claimed in wage loss, and the second shoulder surgery is still recommended with no date.\nThe case is worth more than the coverage. We are capped at the $100,000 defendant limit and the Medicaid lien of $22,180.00 comes off whatever we recover."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Medical Specials To Date}}"
+          },
+          "value": 118400.0
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Wage Loss Claimed}}"
+          },
+          "value": "$214,000.00 claimed to date. Financial advisor, Northwestern Mutual, 875 Third Avenue, New York NY 10022. Commission-only compensation, out of work since DOI and ongoing. Figure is from the client's own 2022 1099; no economic expert retained."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Liability Assessment}}"
+          },
+          "value": "Contested on two independent levels, neither investigated."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Treatment Status}}"
+          },
+          "value": "Active and ongoing, over three years post-loss. Never discharged, no MMI declared."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Health Insurance or Lien Holder}}"
+          },
+          "value": "New York State Medicaid lien, $22,180.00 asserted. Progressive no-fault: $50,000 basic economic loss exhausted, which under Insurance Law 5104(a) is not recoverable from the tortfeasor. Social Security Disability claim filed and pending. Defendants pleaded CPLR 4545 collateral source."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:Prior Related Injuries}}"
+          },
+          "value": "Denied by the client, contradicted by his own paperwork."
+        },
+        {
+          "custom_field": {
+            "id": "{{field:HIPAA Authorization Received}}"
+          },
+          "value": true
+        }
+      ]
+    }
+  },
+  "relationships": {
+    "endpoint": "POST /relationships.json",
+    "items": [
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:ferrara}}"
+          },
+          "description": "Adverse driver"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:metronorth}}"
+          },
+          "description": "Adverse party, self-insured public authority"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:csb}}"
+          },
+          "description": "Third-party claims administrator for Metro-North"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:progressive}}"
+          },
+          "description": "No-fault carrier, client's own policy"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:montefiore}}"
+          },
+          "description": "Hospital, emergency care DOI + 1"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:mcculloch}}"
+          },
+          "description": "Treating provider, orthopaedic surgery"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:capiola}}"
+          },
+          "description": "Treating orthopaedic surgeon, left shoulder arthroscopy"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:rocklandchiro}}"
+          },
+          "description": "Treating provider, chiropractic (Kevin M. Haggerty, D.C.)"
+        }
+      },
+      {
+        "body": {
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "contact": {
+            "id": "{{contact:sportscare}}"
+          },
+          "description": "Treating provider, physical therapy"
+        }
+      }
+    ]
+  },
+  "folders": {
+    "endpoint": "POST /folders.json",
+    "note": "07 Insurance and 09 Settlement stay empty on Sapini; create them anyway.",
+    "items": [
+      {
+        "body": {
+          "name": "01 Intake and Retainer",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "02 Pleadings",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "03 Discovery",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "04 Medical Records",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "05 Medical Bills and Liens",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "06 Correspondence",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "07 Insurance",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "08 Experts",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "09 Settlement",
+          "parent": {
+            "id": "{{matter_id}}",
+            "type": "Matter"
+          }
+        }
+      }
+    ]
+  },
+  "documents": {
+    "how": [
+      "1. POST /documents.json?fields=id,latest_document_version{uuid,put_url,put_headers} with {\"data\": body}. received_at is accepted here and sticks.",
+      "2. PUT the raw file bytes to latest_document_version.put_url, sending every put_headers entry as a header plus an exact Content-Length. No Clio auth header on this request.",
+      "3. PATCH /documents/<id>.json with {\"data\": {\"uuid\": \"<latest_document_version.uuid>\", \"fully_uploaded\": true}}."
+    ],
+    "files_location": "The \"Sapini documents\" folder next to this file. local_path is relative to this JSON.",
+    "items": [
+      {
+        "local_path": "Sapini documents/01 Intake and Retainer/01-intake__created__hipaa-authorization.pdf",
+        "bytes": 3607,
+        "sha256": "bec45b4220c917c73e2b2d4fd87862b711333aa32618192746d0cbf68b1657ca",
+        "body": {
+          "name": "01-intake__created__hipaa-authorization.pdf",
+          "parent": {
+            "id": "{{folder:01 Intake and Retainer}}",
+            "type": "Folder"
+          },
+          "received_at": "2023-05-14T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/01 Intake and Retainer/01-intake__created__photo-id.pdf",
+        "bytes": 46937,
+        "sha256": "38e54578b6eec9a0a5d5e18ed7dab903e9bd626efb45e675cae284b6b4f51d5e",
+        "body": {
+          "name": "01-intake__created__photo-id.pdf",
+          "parent": {
+            "id": "{{folder:01 Intake and Retainer}}",
+            "type": "Folder"
+          },
+          "received_at": "2023-05-07T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/02 Pleadings/02-pleadings__doc-01__summons-complaint.pdf",
+        "bytes": 1043948,
+        "sha256": "60c007036b61647132e8206ea21f3697182a0879971deca30764fd8040623441",
+        "body": {
+          "name": "02-pleadings__doc-01__summons-complaint.pdf",
+          "parent": {
+            "id": "{{folder:02 Pleadings}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-03-08T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/02 Pleadings/02-pleadings__doc-05__verified-answer-demands.pdf",
+        "bytes": 757118,
+        "sha256": "312e76a49a9ae8d1d9d978596f8e72d9bc41ef4f94a4d3edc5bc80eacf43fed9",
+        "body": {
+          "name": "02-pleadings__doc-05__verified-answer-demands.pdf",
+          "parent": {
+            "id": "{{folder:02 Pleadings}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-04-17T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/02 Pleadings/02-pleadings__doc-07__bill-of-particulars.pdf",
+        "bytes": 562026,
+        "sha256": "1011afe0cc8d4ba480ddc4a9028304014004c7b76ad6839502440cd058aee083",
+        "body": {
+          "name": "02-pleadings__doc-07__bill-of-particulars.pdf",
+          "parent": {
+            "id": "{{folder:02 Pleadings}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-05-27T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/02 Pleadings/02-pleadings__doc-41__bop-affirmative-defenses.pdf",
+        "bytes": 112381,
+        "sha256": "8ec38780c6a370fdb4cabff838f7914fb405c09c39e6798d8b1170ad5ccda202",
+        "body": {
+          "name": "02-pleadings__doc-41__bop-affirmative-defenses.pdf",
+          "parent": {
+            "id": "{{folder:02 Pleadings}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-06-26T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/03 Discovery/03-discovery__doc-08__response-discovery-demands.pdf",
+        "bytes": 445350,
+        "sha256": "6260e870e40ab1a1c87060a53c42efb43c4d9e8d1fdf31a2028a76e46ea88e23",
+        "body": {
+          "name": "03-discovery__doc-08__response-discovery-demands.pdf",
+          "parent": {
+            "id": "{{folder:03 Discovery}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-05-07T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/03 Discovery/03-discovery__doc-40__defendants-response-demand.pdf",
+        "bytes": 1144399,
+        "sha256": "74616933f9852e9d2f4dfbeb55170d2fadf609675704f63b3c7d13992f747294",
+        "body": {
+          "name": "03-discovery__doc-40__defendants-response-demand.pdf",
+          "parent": {
+            "id": "{{folder:03 Discovery}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-11-03T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/03 Discovery/03-discovery__doc-43__subpoena-kyle-pullano.pdf",
+        "bytes": 229494,
+        "sha256": "01aac1e8018c18abaa8da0b6c1ccd36db870d2f97038b8799fe24cd4c4769665",
+        "body": {
+          "name": "03-discovery__doc-43__subpoena-kyle-pullano.pdf",
+          "parent": {
+            "id": "{{folder:03 Discovery}}",
+            "type": "Folder"
+          },
+          "received_at": "2025-01-02T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/04 Medical Records/04-medical-records__doc-19__records-bundle-part1-haggerty-imaging.pdf",
+        "bytes": 42107788,
+        "sha256": "8b7b02e3c198c25ebe12cccf75b4117122d2c100d0dd7e54a63436233bd7288b",
+        "body": {
+          "name": "04-medical-records__doc-19__records-bundle-part1-haggerty-imaging.pdf",
+          "parent": {
+            "id": "{{folder:04 Medical Records}}",
+            "type": "Folder"
+          },
+          "received_at": "2025-03-23T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/05 Medical Bills and Liens/05-medical-bills__doc-20__records-and-bills-part2-pt-ortho-er-operative.pdf",
+        "bytes": 34179576,
+        "sha256": "84c55c91f370913be6083261ad2d496d0b8343df7d236ebe2a25467f9558060d",
+        "body": {
+          "name": "05-medical-bills__doc-20__records-and-bills-part2-pt-ortho-er-operative.pdf",
+          "parent": {
+            "id": "{{folder:05 Medical Bills and Liens}}",
+            "type": "Folder"
+          },
+          "received_at": "2025-03-23T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/06 Correspondence/06-correspondence__doc-12__letter-to-judge.pdf",
+        "bytes": 136412,
+        "sha256": "e2e35fc80058c68f24c8654c1f4171277641c85c13a8757ef405aae2e086eb30",
+        "body": {
+          "name": "06-correspondence__doc-12__letter-to-judge.pdf",
+          "parent": {
+            "id": "{{folder:06 Correspondence}}",
+            "type": "Folder"
+          },
+          "received_at": "2024-09-24T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/08 Experts/08-experts__doc-47__radiology-review-katzman.pdf",
+        "bytes": 733553,
+        "sha256": "c68a6bb9a21337b63b88a38c4d0da0539854328f0e4de8f075ec1ed9d1597889",
+        "body": {
+          "name": "08-experts__doc-47__radiology-review-katzman.pdf",
+          "parent": {
+            "id": "{{folder:08 Experts}}",
+            "type": "Folder"
+          },
+          "received_at": "2026-09-22T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/08 Experts/08-experts__doc-55__expert-exchange-neuro-tsao.pdf",
+        "bytes": 2801219,
+        "sha256": "8d1e7311174d7ffc71e83f8ad6fffc3d0bc0c1ce3a198a52f3587ec009ab012e",
+        "body": {
+          "name": "08-experts__doc-55__expert-exchange-neuro-tsao.pdf",
+          "parent": {
+            "id": "{{folder:08 Experts}}",
+            "type": "Folder"
+          },
+          "received_at": "2026-09-20T10:00:00Z"
+        }
+      },
+      {
+        "local_path": "Sapini documents/08 Experts/08-experts__doc-56__ime-orthopedic-hostin.pdf",
+        "bytes": 776965,
+        "sha256": "027581b60b97d4369a9b54730a2c001f5998920f9e1838730bbaa24e5d2e8cf3",
+        "body": {
+          "name": "08-experts__doc-56__ime-orthopedic-hostin.pdf",
+          "parent": {
+            "id": "{{folder:08 Experts}}",
+            "type": "Folder"
+          },
+          "received_at": "2026-09-14T10:00:00Z"
+        }
+      }
+    ]
+  },
+  "notes": {
+    "endpoint": "POST /notes.json",
+    "items": [
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-07",
+          "subject": "Intake summary",
+          "detail": "Met with Justin Sapini in person. Mechanism as he tells it: he was southbound on Cedar Street, New Rochelle, at about 8:30 a.m. in his 2012 VW GLI (NY plate KYR1393) when a Metro-North utility vehicle turning into the Metro-North facility contacted his driver-side door and front fender. No ambulance, drove himself home, presented to Montefiore Nyack ER the next morning with neck, upper back and left shoulder pain and lightheadedness. CT head and cervical both negative.\n\nInjuries claimed: cervical and lumbar spine, both shoulders, both knees. Currently treating with Haggerty (chiropractic) and Dr. Capiola (orthopaedics), with imaging through Mid Rockland.\n\nEmployment: financial advisor at Northwestern Mutual, commission only, out of work since the loss. Says he has his 2022 1099 and can send commission history.\n\nAdverse vehicle is owned by Metro-North, which is a public authority and self-insured, so a Presentation of Claim under Public Authorities Law 1276(1) will be needed with thirty days elapsing before suit. Client says he has twenty-two photographs of the scene on his phone. Denies any prior injuries.\n\nRetainer and HIPAA going out today. (Note taken by S. Alvarez, paralegal.)"
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-14",
+          "subject": "Coverage note: Metro-North is self-insured",
+          "detail": "Metro-North Commuter Railroad is self-insured. There is no carrier and no declarations page to request, which means folder 07 will stay empty on this file and the usual limits question has no document behind it. Claims are administered by Claims Service Bureau, c/o D&D Associates, Garden City. Claim number SIR068120.\n\nFerrara personally carries auto coverage identified at $100,000 / $300,000. If Metro-North comes out of the case on scope of employment, that policy is the entire recovery.\n\nNo statement of exposure has been requested from the authority and none has been volunteered."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-23",
+          "subject": "Mechanism: the client has given three different accounts",
+          "detail": "Reviewing the paperwork the client handed over against what he told us at intake, there are three versions of this collision on file and two of them are his:\n\n1. His claim paperwork: the Metro-North vehicle merged into his lane and struck him.\n2. At intake, described at one point as both vehicles merging and his own vehicle striking the other.\n3. In an earlier written account: sideswiped by a truck, after which he struck the sidewalk.\n\nNo police accident report has been obtained. On a sideswipe there is no presumption of fault in either direction, so the account we adopt is the case.\n\nHe says he has twenty-two photographs. Nobody has asked him for them."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-31",
+          "subject": "Prior injury discrepancy: left ankle",
+          "detail": "Client answered \"none\" to prior injuries at intake. His own document stack contains X-ray reports of the left ankle and left foot dated 5 October 2011, Kenneth Blumberg M.D., impression small dorsal avulsion fracture of the anterior talus, plus a chest film from 10 September 2018.\n\nSeparately, he has complained of left ankle pain that he attributes to this accident, while no left ankle injury is claimed anywhere in our paperwork.\n\nThat is three inconsistent positions on one ankle and all three are ours. Needs resolving before any demand is drafted, and certainly before a deposition."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-06-07",
+          "subject": "Scope of employment is the whole case",
+          "detail": "Ferrara was pulling into a Metro-North facility at 8:30 a.m. in a Metro-North vehicle with Metro-North badging (\"We Aim High to Drive Safe\", 1 800 773-1753, unit E2858D, PA plate ZMP3277).\n\nIf he was on duty, Metro-North answers for him and the case is worth what the injuries are worth. If he was on a break, vicarious liability fails and all that is left against the authority is negligent entrustment, which is a much harder theory. Everything about the value of this file sits on that fact.\n\nKyle Pullano at Metro-North has been identified as the person who can answer it. He has not been contacted."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-07-12",
+          "subject": "Left shoulder surgery authorised",
+          "detail": "Dr. Capiola is proceeding with a left shoulder labral repair. Pre-operative consultation set. Surgery to be performed at New Horizon Surgical Center, Paterson NJ.\n\nMRI supporting it: partial tear of the posterior inferior labrum at the 8 to 9 o'clock position and a low-grade interstitial tear of the posterior fibres of the infraspinatus. The same study also reports hypoplasia of the posterior inferior glenoid, which is developmental rather than traumatic. Expect the defence to lean on it."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-08-01",
+          "subject": "Post-operative: left shoulder arthroscopy performed",
+          "detail": "Left shoulder examination under anaesthesia and arthroscopy performed by Dr. Capiola at New Horizon Surgical Center at DOI + 94: posterior labral repair with a 2.99mm BioComposite PushLock anchor and a cinch stitch, complete synovectomy, lysis of adhesions, subacromial decompression, and extensive debridement of the biceps tendon, a partial rotator cuff tear and a cartilage defect.\n\nPost-operative diagnosis: significant posterior labral tear, synovitis, adhesions, impingement, partial biceps tendon tear, partial rotator cuff tear, cartilage defect.\n\nOperative report requested this week."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-08-31",
+          "subject": "Records received: McCulloch Orthopaedic (Dr. Capiola)",
+          "detail": "Orthopaedic file received, including the operative report. Contains the initial examination at DOI + 24, four referral forms, and follow-ups with Nicole Kosuda, P.A. Filed to 04 Medical Records."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-09-20",
+          "subject": "Imaging summary: ten studies",
+          "detail": "Catalogued the imaging obtained so far, all through Hudson Valley Radiology / Mid Rockland:\n\n- Cervical MRI (DOI + 15): straightening of the lordosis, shallow bulge at C5-6 flattening the left ventral margin of the canal.\n- Lumbar MRI (DOI + 15): L5-S1 bulge with lateral predominance, narrowing the lateral recesses and inferior foramina bilaterally.\n- Both shoulders (DOI + 31): bilateral labral and infraspinatus tears.\n- Both knees (DOI + 71): horizontal undersurface tear of the posterior horn of the medial meniscus, prepatellar soft tissue oedema on the left.\n- Brain MRI with DTI and volumetric analysis (DOI + 107): 2 of 12 regions of interest and 1 of 6 white matter tracts abnormal, hemosiderin focus in the subcortical right parietal lobe. Reported positive predictive value for traumatic brain injury greater than 95%.\n\nWorth holding in mind: the CT head and CT cervical taken the day after the loss were both negative, so the head injury claim rests entirely on imaging taken 107 days later."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-10-20",
+          "subject": "Records received: Advanced Rockland Chiropractic (Haggerty)",
+          "detail": "Chiropractic file received: initial narrative, 52 dated SOAP visits, two re-examination narratives, ten work status reports and a letter of medical necessity for equipment. Covers DOI + 3 through DOI + 212. Filed to 04 Medical Records. Itemised billing still to come."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-11-19",
+          "subject": "Records received: SportsCare Physical Therapy (Ludena)",
+          "detail": "Physical therapy file received: initial examination at DOI + 67, twenty dated daily visits, a re-examination, and a discharge note at DOI + 144.\n\nOne oddity worth noting: the discharge note is followed by daily treatment notes continuing for another 91 days. Either the discharge was never effective or the notes are misfiled. If the defence reads it as a discharge, the gap argument writes itself."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-01-08",
+          "subject": "No-fault exhausted",
+          "detail": "Progressive confirms the $50,000 basic economic loss under the client's own policy is exhausted. Treatment continues at reduced intensity, now billing through Medicaid.\n\nUnder Insurance Law 5104(a) the exhausted no-fault is not recoverable from the tortfeasor, so our specials figure is a treatment-value number rather than the net third-party claim. Flag for whoever drafts the demand."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-02-17",
+          "subject": "Specials tally to date: $118,400.00",
+          "detail": "Running total from eight of the ten providers:\n\n- Left shoulder arthroscopy, New Horizon Surgical Center: $38,500.00\n- Montefiore Nyack ER, day after the loss, CT head and cervical: $9,087.00\n- Imaging, ten studies: $24,600.00\n- EMG/NCV, four studies: $6,200.00\n- Chiropractic, Advanced Rockland, 96 visits: $17,400.00\n- Physical therapy, SportsCare, 74 sessions: $14,900.00\n- Orthopaedic, McCulloch / Dr. Capiola, 14 visits: $4,850.00\n- Physiatry and neurology, Abramov and Kwan: $2,863.00\n\nThe chiropractic and PT ledgers are still being reconciled line by line against the CPT codes, so the two largest components are the two least certain. Two providers have sent nothing."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-03-28",
+          "subject": "Lien and collateral source position",
+          "detail": "New York State Medicaid lien asserted at $22,180.00. Social Security Disability claim filed and pending.\n\nDefendants have pleaded CPLR 4545 collateral source. Between the Medicaid lien, the exhausted no-fault and a pending SSD award, the net to the client will look very different from the gross, and the client should hear that from us before he hears a number."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-04-12",
+          "subject": "Demand package served on Claims Service Bureau",
+          "detail": "Demand package served on Claims Service Bureau under claim SIR068120. Specials of $118,400.00 from eight of the ten providers, wage loss of $214,000.00 on the 2022 1099, the left shoulder arthroscopy and the TBI findings, with the Medicaid lien and the exhausted no-fault stated on the face of it.\n\nServed on the record we hold today. The chiropractic and physical therapy ledgers are open and both are named in the package as subject to revision."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-04-29",
+          "subject": "Adjuster response: negotiations opened",
+          "detail": "Claims Service Bureau acknowledges the demand and opens negotiations with an offer well under the defendant's $100,000 limit. Their position is that liability is contested on mechanism, that the day-after CT scans were clean, and that the wage claim is unsupported by an expert.\n\nNo counter served. Nothing here should be settled while treatment is open and the ledgers are unreconciled."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-05-27",
+          "subject": "Second surgery recommended: right shoulder",
+          "detail": "Dr. Capiola recommends a right shoulder arthroscopy. Right shoulder MRI supports it: intermediate grade interstitial tear of the anterior half of the infraspinatus and a partial tear of the posterior inferior labrum at 8 o'clock.\n\nThe earlier demand and negotiations preceded this recommendation. The additional surgery now leaves the updated damages assessment unresolved, and the client has not been able to give us a date."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-06-04",
+          "subject": "Case evaluation",
+          "detail": "Valuation: $375,000. The economics alone come to $332,400, and the second shoulder surgery is still recommended with no date, so the number moves if it happens.\n\nRecovery is capped well below that. The defendant carries $100,000 per person, the client's own UM/UIM sits under it and adds nothing, and the Medicaid lien of $22,180.00 comes off whatever we get.\n\nExposures, frankly stated:\n- The client has given three inconsistent accounts of the mechanism. On a sideswipe with no police report, that is a credibility problem before it is a liability problem.\n- His own radiology reports a developmental glenoid variant in the same study that justified the surgery.\n- Day-after CT scans were clean; the TBI rests on imaging 107 days later.\n- Wage loss of $214,000.00 rests on a single 1099 from 2022 with no expert behind it.\n\nHe presents well and is genuinely disabled from commission work. But he is a witness who has to be prepared carefully, and the current evidence calls for care in updating our settlement position."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-07-04",
+          "subject": "Right shoulder surgery still has no date",
+          "detail": "Third follow-up with Dr. Capiola's office on scheduling the right shoulder arthroscopy. Still no date. Client says he is willing to proceed whenever they call him.\n\nUntil this is scheduled and performed, treatment cannot be said to be complete and the specials figure keeps moving."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-08-03",
+          "subject": "Demand history and current damages update",
+          "detail": "The demand package went out once the records were in and the lien position was known, and the adjuster opened negotiations on it a few weeks later. That exchange was overtaken by the right shoulder recommendation, the Presentation of Claim was served on Metro-North and the action is now in discovery.\n\nThe current issue is updating the damages picture: the recommended right shoulder surgery remains undated, the chiropractic and PT ledgers are unreconciled, and two providers have not produced bills at all. Continue discovery and update the settlement assessment as treatment and billing evidence develops."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-02",
+          "subject": "Defence independent medical examinations attended",
+          "detail": "Client attended an orthopaedic IME with Dr. Emmanuel Hostin and a neurological IME with Dr. Jack W. Tsao, four days apart. An IME watchdog attended both.\n\nWatchdog reports the orthopaedic examination ran under fifteen minutes. Client refused to provide past medical history to either examiner, which we did not instruct and which will be reported. Expect both reports to make something of it."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-27",
+          "subject": "Client call: treatment status",
+          "detail": "Justin called. Asks whether he should keep attending physical therapy while the case is pending. Advised yes, keep going, and to keep his own record of every visit.\n\nConfirms the right shoulder surgery still has no date. Says he is otherwise fine and will send updated employment records \"soon\". Nothing further."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-09",
+          "subject": "File opened and claim set up",
+          "detail": "Matter opened. Retainer and HIPAA signed. Client photographed his own paperwork and emailed it in before the appointment, which is how we got the claim number this early.\n\nThe defendant is Metro-North, a public authority, which changes everything about the timetable: a notice of claim and the shortened period against a public benefit corporation, not the ordinary three years.\n\nSelf-insured with no stated ceiling, so there is no declarations page to obtain and no limit to confirm. Valuation cannot lean on a policy limit."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-05-18",
+          "subject": "Treatment commenced",
+          "detail": "Client started treating: chiropractic at Advanced Rockland three times weekly, physical therapy at SportsCare, and an orthopaedic consultation with Dr. Capiola at McCulloch for the left shoulder.\n\nImaging referrals made at the first visit. He is a commission salesman, so the wage claim will have to be built from commission statements rather than a salary, and it will be argued."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2023-11-29",
+          "subject": "Records collection: what we hold and what is missing",
+          "detail": "Three of the treating providers have produced in full: McCulloch Orthopaedic including the operative report, Advanced Rockland Chiropractic, and SportsCare Physical Therapy.\n\nTwo have sent nothing at all despite repeated requests, which is why the specials figure is a running total and not a schedule.\n\nThe emergency department chart from Montefiore Nyack is in, which covers the CT of the head and cervical spine on the day after the loss."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-06",
+          "subject": "Discovery is stuck on the maintenance records",
+          "detail": "The authority has produced its responses and objected to the vehicle assignment and dispatch records as overbroad and not reasonably calculated to lead to admissible evidence.\n\nThose records are the case. Scope of employment decides whether Metro-North is in this action at all, and the assignment and dispatch history is the only contemporaneous record of whether Ferrara was on duty that morning.\n\nThe incident report is a second problem: they say it is being searched for, which after this long means either it does not exist or nobody wants to find it.\n\nAsked for a compliance conference so both sets of outstanding items get dealt with in one appearance."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-13",
+          "subject": "Both defence examinations attended, reports now served",
+          "detail": "Both defence reports have now been served. Dr. Hostin's orthopaedic report records a normal range of motion assessment and makes the point we expected about the client declining to give a past medical history.\n\nDr. Tsao's neurological examination has produced an expert disclosure. Dr. Katzman's radiology review followed a few days later and has been saved to the file."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-18",
+          "subject": "The second surgery is now the biggest open question on this file",
+          "detail": "Five approaches to McCulloch Orthopaedic for a date for the recommended right shoulder arthroscopy and there is still no date. The latest answer is that Dr. Capiola wants to see the patient again before scheduling.\n\nThis is not an administrative problem, it is a valuation problem. A recommended and undated second surgery is worth far less than a performed one, and the defence will say it was never needed if it never happens.\n\nMeanwhile the client is still in physical therapy twice a week and asking us when it will be done."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-25",
+          "subject": "Specials cannot be closed while two ledgers are unreconciled",
+          "detail": "The running figure of $118,400.00 stands, and the two largest components remain the two least certain: the chiropractic and physical therapy ledgers have never been reconciled line by line against the CPT codes.\n\nUpdated ledger requested from Advanced Rockland. SportsCare has not been asked since the last production and should be.\n\nUntil both are in, any number we give the authority is a number we may have to correct, which is the worst position to negotiate from."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-04-22",
+          "subject": "Two years on, still treating",
+          "detail": "Two-year review of the file. The client attends physical therapy once a week at SportsCare and chiropractic once a week at Advanced Rockland. He has not been discharged by anyone and no maximum medical improvement has been declared. Tramadol and ibuprofen as needed.\n\nThe right shoulder arthroscopy Dr. Capiola recommended is still on the table with no date. The demand has already been sent and negotiations have taken place. The undated surgery still leaves the current damages assessment provisional."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-06-12",
+          "subject": "Discovery status",
+          "detail": "Defendants served a supplemental demand for authorizations covering the maintenance treatment. Our position is that the original HIPAA authorization already covers the same providers and that this is a second bite. Responding rather than motioning: the paper is cheaper than the fight."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-07-23",
+          "subject": "Medicaid lien",
+          "detail": "Lien unit acknowledges the file and states the asserted figure is unchanged at $22,180.00. They will not re-audit until the case resolves, which is normal. Nothing to do here until we have a number to settle at."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-08-27",
+          "subject": "Deposition scheduling",
+          "detail": "Both sides are trying to schedule the client deposition. Defence counsel has asked for dates after the second shoulder surgery so they can examine on a completed treatment picture. That is convenient for them and not obviously wrong, but it hands the calendar to a surgery that has no date."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-10-24",
+          "subject": "Capiola follow-up: surgery still recommended",
+          "detail": "Dr. Capiola re-examined the client and repeats the recommendation for a right shoulder arthroscopy. Same findings as the original MRI: labral and infraspinatus involvement. He will not schedule until the client stops deferring it.\n\nThis is now the single item holding the case where it is."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-12-08",
+          "subject": "Specials tally, interim",
+          "detail": "Bills received from eight of ten providers. The chiropractic and physical therapy ledgers are still open because both are ongoing, so the specials figure moves every month. Current working total $118,400.00, which is an interim number and should not be quoted anywhere as final."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-01-12",
+          "subject": "Case posture at the turn of the year",
+          "detail": "Where this file actually is: liability is contested on two independent levels and neither has been investigated. Scope of employment decides whether Metro-North is in the case at all, and everything about the value of this matter turns on that one question.\n\nTreatment is open, the second surgery is unscheduled, discovery is moving slowly, and the client is cooperative but slow to act on the surgery. No urgency from the other side."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-03-06",
+          "subject": "Compliance conference",
+          "detail": "Court set a further compliance conference. Outstanding on our side are the updated maintenance ledgers; outstanding on theirs is the Metro-North scope-of-employment disclosure and the Pullano deposition. Neither side is being obstructive, both sides are being slow."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-09",
+          "subject": "Coverage confirmed in writing",
+          "detail": "Coverage confirmed in writing by the adjuster, so the policy limits field comes off unconfirmed.\n\nDefendant liability $100,000 per person / $300,000 per occurrence. The client's own UM/UIM is $25,000 / $50,000, below the defendant's limits, so it does not add anything here. No-fault was $50,000 and is exhausted.\n\nPractical read: recovery is capped at $100,000 unless the case reaches a second defendant, and the Medicaid lien of $22,180.00 comes off whatever we get."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2024-10-19",
+          "subject": "Discovery served both ways",
+          "detail": "Combined demands exchanged. We have served the bill of particulars and the authorizations; defendants have served their combined demands and a notice to produce. Nothing contentious yet on either side."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-02-16",
+          "subject": "Records production to defence",
+          "detail": "Produced the record set we hold: Montefiore Nyack, Capiola, Haggerty, Abramov, Kwan and the imaging. The maintenance treatment at SportsCare and Advanced Rockland is ongoing so those ledgers are produced to date only, and both will need refreshing before any deposition."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2025-03-18",
+          "subject": "Client is still out of work",
+          "detail": "Client remains out of work. Commission-only at Northwestern Mutual, so there is no salary continuation and nothing to offset. The wage claim rests on the 2022 1099 alone and we still do not have production records for the years since. This is the weakest documented part of the damages case."
+        }
+      },
+      {
+        "body": {
+          "type": "Matter",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "date": "2026-09-15",
+          "subject": "Case posture, and what is still not done",
+          "detail": "Read this before the next discovery conference.\n\nLiability is contested on two independent levels and neither has been investigated.\n\nFirst, mechanism. A sideswipe between two vehicles in adjacent merging lanes carries no presumption of fault in either direction, unlike a rear-ender. The client has given three inconsistent accounts: his claim paperwork has the Metro-North vehicle merging into his lane and striking him, he has separately described his own vehicle striking the other as both merged, and he has separately described being sideswiped by a truck and striking the sidewalk. There is no police accident report in the file. He says he has twenty-two scene photographs and we have obtained none of them.\n\nSecond, scope of employment, and this is the whole case. Ferrara was pulling into a Metro-North facility at half past eight in the morning, in a Metro-North vehicle with Metro-North badging. If he was on a break rather than on duty, vicarious liability fails and all that is left against the authority is negligent entrustment. Kyle Pullano, a Metro-North employee, has been identified as the person who can answer this. Nobody has contacted him.\n\nAnticipate comparative negligence, assumption of risk and a seatbelt defence.\n\nOn prior injuries: at intake he answered none. The records he handed over include left ankle and left foot X-rays dated 5 October 2011, Kenneth Blumberg M.D., impression small dorsal avulsion fracture of the anterior talus, and a chest X-ray dated 10 September 2018. He has separately complained of left ankle pain from this accident, and no left ankle injury has been claimed anywhere. Three inconsistent positions on one ankle, all of them ours. Resolve before the next settlement discussion and before his deposition.\n\nSeparately, not a prior injury but a causation exposure: the left shoulder MRI reports hypoplasia of the posterior inferior glenoid, a developmental variant, in the same study that supported the surgery."
+        }
+      }
+    ]
+  },
+  "communications": {
+    "endpoint": "POST /communications.json",
+    "items": [
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-05-07",
+          "subject": "Photographs of my paperwork",
+          "body": "Hi, as discussed this morning, attached are photos of everything I have: the exchange of information sheet, the paperwork from the hospital, and the forms from the other side. I also have 22 photos from the scene on my phone if those are useful. Justin",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-05-08",
+          "subject": "Retainer agreement and HIPAA authorization",
+          "body": "Justin, thank you for coming in. Attached are the retainer agreement and the HIPAA authorization. Please sign and return both and we will get the provider record requests moving. Once we have those we can start putting a value on the medical side.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2023-05-11",
+          "subject": "Intake follow-up: employment and treatment",
+          "body": "Called the client to confirm the treatment list and his employment position. Confirms he is commission only at Northwestern Mutual and has been out of work since the loss. Will look out his 2022 1099. Confirms he is seeing Haggerty and Dr. Capiola and has imaging booked.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-05-14",
+          "subject": "Signed retainer and HIPAA returned",
+          "body": "Both signed and attached. Let me know what else you need from me. Justin",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-05-15",
+          "subject": "Letter of representation, claim SIR068120",
+          "body": "Please be advised that this firm represents Justin W. Sapini in connection with the motor vehicle collision of record involving a Metro-North Commuter Railroad vehicle operated by Anthony F. Ferrara. All further communication should be directed to this office. Please confirm the claim number and the identity of the adjuster assigned.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-05-22",
+          "subject": "RE: Letter of representation, claim SIR068120",
+          "body": "Receipt acknowledged. This file is administered by Claims Service Bureau on behalf of Metro-North Commuter Railroad under claim SIR068120. Please forward a HIPAA authorization so we may obtain the medical records.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-06-02",
+          "subject": "HIPAA authorization, claim SIR068120",
+          "body": "Attached as requested. Please confirm receipt and advise the name of the adjuster handling.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-06-22",
+          "subject": "Records request: Justin Sapini, Dr. Capiola file",
+          "body": "Please provide the complete file for Justin W. Sapini (DOB 12/21/1995), including all office notes, referrals, imaging reports and itemised billing. A signed HIPAA authorization is attached.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-06-28",
+          "subject": "Records request: Justin Sapini, chiropractic file",
+          "body": "Please provide the complete chiropractic file for Justin W. Sapini, including the initial narrative, all daily notes, re-examinations, work status reports and an itemised ledger. HIPAA authorization attached.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-07-04",
+          "subject": "Records request: Justin Sapini, physical therapy file",
+          "body": "Please provide the complete physical therapy file for Justin W. Sapini including the initial evaluation, daily notes and itemised billing. HIPAA authorization attached.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-07-27",
+          "subject": "Records request: emergency department chart",
+          "body": "Please provide the complete emergency department record for Justin W. Sapini for his presentation on the day after the collision, including the CT head and CT cervical spine reports and the itemised charges. HIPAA authorization attached.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:montefiore}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-08-21",
+          "subject": "Invoice for medical records, account 4471-SAPINI",
+          "body": "We are in receipt of your request. Records will be released on payment of the enclosed invoice for reproduction costs. Please remit before we can process.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:montefiore}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-08-31",
+          "subject": "Records enclosed: Sapini, orthopaedic file and operative report",
+          "body": "Attached is the complete orthopaedic file for the above patient, including the operative report for the left shoulder arthroscopy. Billing will follow separately.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-10-20",
+          "subject": "Records enclosed: Sapini, chiropractic file",
+          "body": "Please find the chiropractic file attached: initial narrative, daily notes, re-examinations and work status reports. Itemised ledger to follow.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-11-19",
+          "subject": "Records enclosed: Sapini, physical therapy file",
+          "body": "Attached please find the physical therapy records for Justin Sapini through the date of this letter.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2023-07-12",
+          "subject": "Pre-operative scheduling, left shoulder",
+          "body": "Spoke with Dr. Capiola's scheduler. Left shoulder arthroscopy to be performed at New Horizon Surgical Center. Pre-operative consultation confirmed for DOI + 80.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-07-20",
+          "subject": "Surgical date confirmed, left shoulder",
+          "body": "Confirming the left shoulder arthroscopy for Mr. Sapini, to be performed by Dr. Capiola at New Horizon Surgical Center, Paterson NJ. Pre-operative clearance is complete.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2023-07-28",
+          "subject": "Post-surgery check-in with client",
+          "body": "Called the client two days after the arthroscopy. Reports significant pain, in a sling, follow-up booked. Reminded him to keep every discharge instruction and receipt.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-08-01",
+          "subject": "Request: operative report, left shoulder",
+          "body": "Please provide the operative report and anaesthesia record for the left shoulder arthroscopy performed on the above patient, together with the surgical facility billing.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-08-11",
+          "subject": "Operative report enclosed",
+          "body": "Attached is the operative report as requested. Facility billing is issued separately by New Horizon Surgical Center.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-12-19",
+          "subject": "No-fault benefits exhausted, claim 22-4471102",
+          "body": "Please be advised that the $50,000 basic economic loss coverage under the above policy has been exhausted. No further first-party benefits are payable. A payment ledger is available on request.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:progressive}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2023-12-29",
+          "subject": "Request for no-fault payment ledger",
+          "body": "Please forward the complete payment ledger for this claim, showing all providers paid, dates of service and amounts, so we can reconcile against the treatment records.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:progressive}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-01-13",
+          "subject": "No-fault payment ledger enclosed",
+          "body": "Attached is the requested ledger for claim 22-4471102 showing payments to date and the point of exhaustion.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:progressive}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-02-17",
+          "subject": "Medicaid coverage and what a lien means",
+          "body": "Justin, now that the no-fault benefits are exhausted your treatment is billing through Medicaid. Medicaid will assert a lien against any recovery, which means part of what comes in is repaid to them. We will negotiate that at the end. Nothing changes about your treatment: keep going.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-03-28",
+          "subject": "Social Security Disability filing acknowledged",
+          "body": "Confirming the SSD claim has been filed and acknowledged, currently pending. Please forward anything you receive from SSA without opening a response yourself so we can review it first.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-04-07",
+          "subject": "Updated records and itemised bill to date",
+          "body": "Please provide updated daily notes for Mr. Sapini from your last production to date, together with an itemised bill showing CPT codes and amounts.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-05-27",
+          "subject": "Request for updated treatment notes",
+          "body": "Please provide all treatment notes for Mr. Sapini from your last production to date. He advises he continues to attend weekly.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-08-15",
+          "subject": "Updated chiropractic notes enclosed",
+          "body": "Attached are the updated notes through the date of this letter. The itemised ledger is being prepared and will follow.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-12-06",
+          "subject": "Second request: itemised bill, account 4471-SAPINI",
+          "body": "Further to our payment of the reproduction invoice, we still require the itemised charge detail for the emergency department attendance. Please forward at your earliest convenience.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:montefiore}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-05-05",
+          "subject": "Third request: updated treatment notes",
+          "body": "We have written twice for updated notes without response. Mr. Sapini confirms he continues to attend weekly. Please advise whether there is an outstanding balance holding up production.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-05-05",
+          "subject": "Right shoulder arthroscopy: requesting a date",
+          "body": "Dr. Capiola has recommended a right shoulder arthroscopy for Mr. Sapini. Please advise the proposed surgical date so we can plan around it.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-06-14",
+          "subject": "Call to scheduling re right shoulder date",
+          "body": "Called the surgical scheduler. Told the date depends on Dr. Capiola's block time and they would call back. No call back received.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-07-04",
+          "subject": "Second request: right shoulder surgical date",
+          "body": "Following up again on a date for the right shoulder arthroscopy. The client is available at short notice and is willing to travel to whichever facility has capacity.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-08-03",
+          "subject": "Third request: right shoulder surgical date",
+          "body": "This is our third written request for a surgical date. Please advise whether the procedure is still recommended, and if so when it is likely to be scheduled. We cannot finalise our client's claim while it is outstanding.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-08-23",
+          "subject": "Claim SIR068120: file review",
+          "body": "This file has been reviewed. We confirm representation is noted and the HIPAA authorization is on file. Please forward medical records and any updated treatment information as it becomes available. We will revert in due course.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-08-03",
+          "subject": "IME notice: orthopaedic examination",
+          "body": "Notice of an independent orthopaedic examination of Mr. Sapini by Dr. Emmanuel Hostin. Please confirm the client's attendance.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-08-18",
+          "subject": "IME notice: neurological examination",
+          "body": "Notice of an independent neurological examination of Mr. Sapini by Dr. Jack W. Tsao. Please confirm attendance.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-09-07",
+          "subject": "IME watchdog booking confirmed",
+          "body": "Booked an IME watchdog to attend both examinations with the client and confirmed the appointment times with him. Reminded him to answer questions about this accident and to bring nothing with him.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-21",
+          "subject": "Updated employment and commission records",
+          "body": "Justin, we still need your commission statements for the years after 2022 and anything from Northwestern Mutual confirming your production before the accident. This is the single biggest number in your claim and right now it rests on one document. Can you send what you have this week?",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-09-27",
+          "subject": "Client call: should he keep going to PT",
+          "body": "Justin called to ask whether he should keep attending physical therapy while the case is pending. Told him yes and to keep his own note of each visit. He confirms the right shoulder surgery still has no date. No other questions.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-04-12",
+          "subject": "Demand package, claim SIR068120",
+          "body": "Enclosed please find our demand package on behalf of Justin Sapini, comprising the medical records and bills received to date, the imaging reports, the operative report for the left shoulder arthroscopy and the wage documentation. The chiropractic and physical therapy ledgers remain open and those figures are subject to revision on production.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-05",
+          "subject": "Discovery status and outstanding demands",
+          "body": "Our responses to your demands were served some time ago. Your client has still not produced the incident report or the vehicle assignment and dispatch records for the morning of the collision, both of which were demanded and neither of which appears in your response.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-08",
+          "subject": "RE: Discovery status and outstanding demands",
+          "body": "Confirming the coverage position on this file. The bodily injury liability limits are $100,000 per person and $300,000 per occurrence. No excess or umbrella coverage is disclosed.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-10",
+          "subject": "Compliance conference: proposed dates",
+          "body": "Please advise your availability for a compliance conference. The outstanding items on both sides are now capable of being listed and dealt with in one appearance.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-09-12",
+          "subject": "Client call: the IME examinations",
+          "body": "Went through both examinations with him. He attended each, the watchdog attended the orthopaedic one, and he says the neurological examination lasted under ten minutes. Told him to expect the reports to be unhelpful and why that is normal.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-14",
+          "subject": "IME report served: orthopaedic examination",
+          "body": "Enclosed please find the report of Dr. Emmanuel Hostin following his orthopaedic examination of the plaintiff, served pursuant to the rules.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-17",
+          "subject": "Chaser: right shoulder surgical date",
+          "body": "This is now the fifth approach on this point. The recommended right shoulder arthroscopy has no date, the patient is asking us, and the damages cannot be closed while the second surgery is an open question.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-20",
+          "subject": "Expert exchange served: neurology",
+          "body": "Enclosed is the expert disclosure of Dr. Jack W. Tsao in respect of the neurological examination, served in accordance with the demand for expert information.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-22",
+          "subject": "Radiology review served",
+          "body": "Enclosed is the radiological review of Dr. Katzman, M.D., exchanged pursuant to CPLR 3101(d).",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-24",
+          "subject": "RE: Chaser: right shoulder surgical date",
+          "body": "Dr. Capiola will see the patient again before scheduling. The office will call with a date once that visit has taken place. No date can be given in the meantime.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:mcculloch}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-26",
+          "subject": "Updated ledger request: chiropractic",
+          "body": "Please provide the itemised ledger to date with CPT codes. The running figure we hold has not been reconciled against your billing and the specials schedule cannot be closed without it.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-09-25",
+          "subject": "Call to the client re the second surgery",
+          "body": "He asked again when the right shoulder will be done. Explained that the surgeon wants to see him first and that we have asked five times. He is still going to physical therapy twice a week.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-04-08",
+          "subject": "Checking in: still going to therapy",
+          "body": "Hi, just letting you know I am still going to physical therapy on Tuesdays and the chiropractor on Thursdays. The shoulder is about the same. Nobody has said anything about the surgery yet. Let me know if you need anything from me.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-05-07",
+          "subject": "Records request: updated physical therapy ledger",
+          "body": "Please provide an updated itemised ledger and progress notes for this patient from the date of your last production to the present. Treatment is ongoing so we will need to refresh this periodically. Authorization is on file.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2025-05-24",
+          "subject": "Call to Claims Service Bureau re scope of employment",
+          "body": "Asked whether Metro-North accepts that Mr. Ferrara was acting within the scope of his employment at the time of the collision. Adjuster would not take a position on the call and referred the question to counsel. Noted.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2025-07-09",
+          "subject": "Call from the client re the second surgery",
+          "body": "Client called. He has not scheduled the right shoulder arthroscopy. He says he cannot afford to be out of work again, that commissions dried up after the first surgery and he is still catching up. Explained that the longer it sits undone the harder it is to value, and that a gap will be used against him.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-08-10",
+          "subject": "Records request: updated chiropractic ledger",
+          "body": "Please provide an updated itemised billing ledger and treatment notes from the date of your last production to the present. Treatment is ongoing weekly.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:rocklandchiro}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-09-14",
+          "subject": "Social Security Disability claim status",
+          "body": "Following up on the SSD claim. Please forward anything you have received from Social Security, including denials. It matters here because the defendants have pleaded a collateral source offset and we need to know what is actually in payment.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2025-10-09",
+          "subject": "Client check-in",
+          "body": "Routine check-in. Treatment unchanged, PT once a week and chiropractic once a week. No new symptoms. Reminded him about the surgery decision. He will speak to Dr. Capiola.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-11-13",
+          "subject": "Defendants supplemental demand for authorizations",
+          "body": "Enclosed please find defendants supplemental combined demands, including authorizations for the plaintiff continuing physical therapy and chiropractic treatment and for any provider not previously identified.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-12-23",
+          "subject": "Year-end check-in",
+          "body": "Justin, checking in before the holidays. Nothing needs doing from you right now other than the surgery decision. When you are ready to schedule it, tell us first so we can get the operative report and the bills as they come rather than chasing them a year later.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-01-29",
+          "subject": "Compliance conference date",
+          "body": "Court has scheduled a further compliance conference. Please confirm your availability and advise on the status of the outstanding maintenance treatment records.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2026-02-16",
+          "subject": "Call to the client ahead of the conference",
+          "body": "Explained what a compliance conference is and that he does not need to attend. Asked again about the surgery. He says he has an appointment with Dr. Capiola but has not confirmed a surgical date.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-03-23",
+          "subject": "Records chaser: physical therapy",
+          "body": "Second request. We still do not have the updated ledger and notes for this patient. The court has now asked about these records specifically, so please treat this as urgent.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:sportscare}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2026-09-08",
+          "subject": "RE: Coverage confirmation, claim SIR068120",
+          "body": "Confirming the coverage position on this file. The bodily injury liability limits are $100,000 per person and $300,000 per occurrence. No excess or umbrella coverage is disclosed.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "PhoneCommunication",
+          "date": "2024-10-07",
+          "subject": "Post-operative check-in with the client",
+          "body": "Called the client. Left shoulder is better than before the surgery but not right. He is doing physical therapy twice a week and says the right shoulder now bothers him more than the left. Told him to raise it with Dr. Capiola specifically rather than mentioning it in passing.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2024-11-18",
+          "subject": "Notice to produce and combined demands",
+          "body": "Please find enclosed defendants notice to produce and combined discovery demands, including authorizations for all treating providers, employment records and collateral source information.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:csb}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-01-10",
+          "subject": "No-fault benefits exhausted",
+          "body": "This is to advise that basic economic loss benefits under the policy have been exhausted in the amount of $50,000.00. No further no-fault payments will issue on this claim.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{contact:progressive}}",
+              "type": "Contact"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ]
+        }
+      },
+      {
+        "body": {
+          "type": "EmailCommunication",
+          "date": "2025-03-01",
+          "subject": "Medicaid lien notice",
+          "body": "Justin, New York State Medicaid has asserted a lien against any recovery in this case in the amount of $22,180.00. Nothing needs doing now. It comes off the top when the case resolves and we will negotiate it down at that point, which is normal and expected.",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "senders": [
+            {
+              "id": "{{user_id}}",
+              "type": "User"
+            }
+          ],
+          "receivers": [
+            {
+              "id": "{{contact:client}}",
+              "type": "Contact"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tasks": {
+    "endpoint": "POST /tasks.json",
+    "items": [
+      {
+        "body": {
+          "name": "Limitations Date",
+          "description": "Three-year statute of limitations, and the shortened period applicable to a claim against a public benefit corporation. Satisfied: the notice of claim was served and suit commenced within time. Retained on the matter for the record.",
+          "due_at": "2026-04-22",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          },
+          "statute_of_limitations": true
+        }
+      },
+      {
+        "body": {
+          "name": "By medical provider: McCulloch Orthopaedic Surgical Services, PLLC - Updated records and right shoulder surgical date",
+          "description": "Updated office notes since the last production, and a confirmed date for the recommended right shoulder arthroscopy. Three written requests, no date given.",
+          "due_at": "2026-08-25",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "By medical provider: Advanced Rockland Chiropractic Offices, P.C. - Current daily notes and itemised bill to date",
+          "description": "Notes since the last production plus the itemised ledger with CPT codes, needed to close out the specials figure.",
+          "due_at": "2026-10-07",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "By medical provider: SportsCare Physical Therapy of New York - Ongoing treatment notes",
+          "description": "Treatment notes from the last production to date. Two requests unanswered.",
+          "due_at": "2026-10-14",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Reconcile chiropractic and PT ledgers against CPT lines",
+          "description": "The two largest components of the specials figure are the two least certain until the ledgers are reconciled line by line.",
+          "due_at": "2026-10-05",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Obtain updated employment and commission records from client",
+          "description": "Wage loss of $214,000.00 currently rests on a single 2022 1099. Need commission statements for the following years.",
+          "due_at": "2026-09-26",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Confirm date of right shoulder arthroscopy with Dr. Capiola's office",
+          "description": "Confirm whether and when the recommended surgery will take place so the damages assessment can be updated during litigation.",
+          "due_at": "2026-10-10",
+          "status": "pending",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Pay Montefiore Nyack records invoice and re-request",
+          "description": "Hospital required payment of reproduction costs before releasing the emergency department chart.",
+          "due_at": "2023-11-09",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Request operative report, left shoulder",
+          "description": "Operative report and anaesthesia record for the arthroscopy at New Horizon Surgical Center.",
+          "due_at": "2023-08-01",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Serve letter of representation on Claims Service Bureau",
+          "description": "Claim SIR068120, administered on behalf of Metro-North Commuter Railroad.",
+          "due_at": "2023-05-14",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Catalogue client's own document stack",
+          "description": "Photographs of paperwork provided at intake, including prior X-ray reports the client did not disclose.",
+          "due_at": "2023-06-02",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Attend orthopedic IME with client",
+          "description": "Dr. Emmanuel Hostin. IME watchdog attended.",
+          "due_at": "2026-09-02",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "Attend neurological IME with client",
+          "description": "Dr. Jack W. Tsao. IME watchdog attended.",
+          "due_at": "2026-09-07",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      },
+      {
+        "body": {
+          "name": "File Medicaid lien acknowledgment",
+          "description": "New York State Medicaid lien asserted at $22,180.00.",
+          "due_at": "2024-03-28",
+          "status": "complete",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "assignee": {
+            "id": "{{user_id}}",
+            "type": "User"
+          }
+        }
+      }
+    ]
+  },
+  "calendar_entries": {
+    "endpoint": "POST /calendar_entries.json",
+    "items": [
+      {
+        "body": {
+          "summary": "Initial client consultation, Justin Sapini",
+          "description": "Intake meeting. Retainer and HIPAA signed.",
+          "start_at": "2023-05-07T10:00:00Z",
+          "end_at": "2023-05-07T10:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Pre-operative consultation, Dr. Capiola",
+          "description": "Left shoulder, ahead of the arthroscopy at New Horizon Surgical Center.",
+          "start_at": "2023-07-12T09:30:00Z",
+          "end_at": "2023-07-12T10:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Left shoulder arthroscopy, New Horizon Surgical Center",
+          "description": "Posterior labral repair, synovectomy, lysis of adhesions, subacromial decompression, debridement. Dr. David Capiola.",
+          "start_at": "2023-07-26T07:30:00Z",
+          "end_at": "2023-07-26T11:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Post-operative follow-up, Dr. Capiola",
+          "description": "Left shoulder, first post-operative review.",
+          "start_at": "2023-08-31T11:00:00Z",
+          "end_at": "2023-08-31T11:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Consultation re second surgery, right shoulder",
+          "description": "Dr. Capiola recommends a right shoulder arthroscopy.",
+          "start_at": "2024-05-27T14:00:00Z",
+          "end_at": "2024-05-27T14:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Orthopedic IME, Dr. Emmanuel Hostin",
+          "description": "Defence independent medical examination. IME watchdog attending.",
+          "start_at": "2026-09-02T13:00:00Z",
+          "end_at": "2026-09-02T14:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Neurological IME, Dr. Jack W. Tsao",
+          "description": "Defence independent neurological examination. IME watchdog attending.",
+          "start_at": "2026-09-07T10:00:00Z",
+          "end_at": "2026-09-07T11:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Follow-up call with client re treatment status",
+          "description": "Check whether the right shoulder surgery has been scheduled and chase employment records.",
+          "start_at": "2026-10-14T15:00:00Z",
+          "end_at": "2026-10-14T15:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "LIMITATIONS DATE: Sapini",
+          "description": "Three-year statute of limitations expires. Note that a Presentation of Claim on Metro-North under Public Authorities Law 1276(1) must precede suit, with thirty days elapsing.",
+          "start_at": "2026-04-22T09:00:00Z",
+          "end_at": "2026-04-22T09:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Call to McCulloch Orthopaedic re right shoulder surgical date",
+          "description": "Fourth attempt. Three written requests and one call have produced no date for the recommended right shoulder arthroscopy, and the specials cannot be closed without it.",
+          "start_at": "2026-10-10T10:30:00Z",
+          "end_at": "2026-10-10T10:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "File review: compliance conference and the second surgery",
+          "description": "Two decisions. Whether to move to compel the vehicle assignment and dispatch records after the objection, and whether to value this case with the right shoulder surgery as recommended-but-undated or wait for a date that may never come.",
+          "start_at": "2026-10-21T15:00:00Z",
+          "end_at": "2026-10-21T16:00:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Client appointment: updated employment and commission records",
+          "description": "Collect the current commission statements to bring the wage loss claim up to date.",
+          "start_at": "2026-10-29T11:00:00Z",
+          "end_at": "2026-10-29T11:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Compliance conference",
+          "description": "Outstanding on our side are the updated maintenance ledgers; outstanding on theirs is the Metro-North scope-of-employment disclosure.",
+          "start_at": "2025-04-15T10:00:00Z",
+          "end_at": "2025-04-15T10:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Client appointment: treatment and surgery decision",
+          "description": "Reviewed the ongoing PT and chiropractic and pressed again on scheduling the right shoulder arthroscopy.",
+          "start_at": "2025-10-09T14:00:00Z",
+          "end_at": "2025-10-09T14:30:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Client treatment: physical therapy, SportsCare Physical Therapy of New York",
+          "description": "Weekly physical therapy session. Client attending; confirm attendance on the updated treatment notes SportsCare owes us.",
+          "start_at": "2026-10-10T09:00:00Z",
+          "end_at": "2026-10-10T09:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Client treatment: chiropractic, Advanced Rockland Chiropractic Offices, P.C.",
+          "description": "Weekly chiropractic session with Kevin M. Haggerty, D.C. Client attending.",
+          "start_at": "2026-10-09T17:30:00Z",
+          "end_at": "2026-10-09T18:00:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      },
+      {
+        "body": {
+          "summary": "Client treatment: physical therapy (following week), SportsCare Physical Therapy of New York",
+          "description": "Weekly physical therapy session, following week.",
+          "start_at": "2026-10-17T09:00:00Z",
+          "end_at": "2026-10-17T09:45:00Z",
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "calendar_owner": {
+            "id": "{{calendar_id}}"
+          }
+        }
+      }
+    ]
+  },
+  "expenses": {
+    "endpoint": "POST /activities.json",
+    "items": [
+      {
+        "body": {
+          "type": "ExpenseEntry",
+          "date": "2023-11-09",
+          "quantity": 1,
+          "price": 85.0,
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "user": {
+            "id": "{{user_id}}"
+          },
+          "note": "Records reproduction: Montefiore Nyack emergency department chart reproduction.\nPaid by the firm in USD; not yet reimbursed. Case expense, not patient treatment charges.",
+          "tax_setting": "no_tax"
+        }
+      },
+      {
+        "body": {
+          "type": "ExpenseEntry",
+          "date": "2023-08-31",
+          "quantity": 1,
+          "price": 65.0,
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "user": {
+            "id": "{{user_id}}"
+          },
+          "note": "Records reproduction: McCulloch Orthopaedic records copy, including the left shoulder operative report.\nPaid by the firm in USD; not yet reimbursed. Case expense, not patient treatment charges.",
+          "tax_setting": "no_tax"
+        }
+      },
+      {
+        "body": {
+          "type": "ExpenseEntry",
+          "date": "2026-09-03",
+          "quantity": 1,
+          "price": 600.0,
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "user": {
+            "id": "{{user_id}}"
+          },
+          "note": "IME observer: Observer attendance at the two completed defence medical examinations; this is the plaintiff firm observer cost, not payment for the defence reports.\nPaid by the firm in USD; not yet reimbursed. Case expense, not patient treatment charges.",
+          "tax_setting": "no_tax"
+        }
+      },
+      {
+        "body": {
+          "type": "ExpenseEntry",
+          "date": "2023-11-29",
+          "quantity": 1,
+          "price": 450.0,
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "user": {
+            "id": "{{user_id}}"
+          },
+          "note": "Records reproduction: Reproduction and imaging copy charges for the remaining treating providers and the ten imaging studies.\nPaid by the firm in USD; not yet reimbursed. Case expense, not patient treatment charges.",
+          "tax_setting": "no_tax"
+        }
+      },
+      {
+        "body": {
+          "type": "ExpenseEntry",
+          "date": "2024-07-21",
+          "quantity": 1,
+          "price": 210.0,
+          "matter": {
+            "id": "{{matter_id}}"
+          },
+          "user": {
+            "id": "{{user_id}}"
+          },
+          "note": "Court filing: Summons and complaint filing, New York County index 160000/2024.\nPaid by the firm in USD; not yet reimbursed. Case expense, not patient treatment charges.",
+          "tax_setting": "no_tax"
+        }
+      }
+    ]
+  }
+}

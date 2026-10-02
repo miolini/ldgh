@@ -1,0 +1,18 @@
+# Local model downloads and extracted checkpoints
+model-cache/
+model-source/
+
+# Generated model and WebGPU diagnostics / fixtures
+browser-model-report.json
+gpu-memory-plan.json
+gpu-memory-report.json
+webgpu-attention-report.json
+webgpu-operator-report.json
+webgpu-fixtures/
+
+# Local documents and machine-generated files
+Sapini documents/
+*.pdf
+__pycache__/
+*.py[cod]
+.DS_Store
