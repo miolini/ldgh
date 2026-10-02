@@ -1,3 +1,5 @@
+import { evidenceLikelihoodRatio } from './probabilistic-model.mjs';
+
 const STORAGE_KEY = 'fieldnote-sapini-analysis-v2';
 const number = new Intl.NumberFormat('en-US', {maximumFractionDigits:0});
 const money = value => `$${number.format(Math.max(0, value))}`;
@@ -9,7 +11,7 @@ const dimensions = {
 
 const defaults = {
   assumptions: {
-    liability: .62, scope: .62, specialsSupport: .72, wageSupport: .38, surgery: .55,
+    liability: .62, scope: .62, liabilityScopeDependence:0, specialsSupport: .72, wageSupport: .38, surgery: .55,
     specials: 118400, wages: 214000, futureLow: 18000, futureHigh: 65000,
     nonEconomicLow: .7, nonEconomicMode: 1.45, nonEconomicHigh: 2.8,
     comparativeLow: .05, comparativeHigh: .35, settlement: .72, coverageLimit:100000, lien:22180, noFaultPaid:50000,
@@ -47,83 +49,7 @@ function save() {
   catch (error) { console.warn('Analyst inputs could not be persisted:', error); }
 }
 
-function posterior(prior, dimension) {
-  const p = clamp(prior, .01, .99);
-  let logOdds = Math.log(p / (1 - p));
-  for (const fact of state.facts) {
-    if (fact.dimension !== dimension || Number(fact.lr) <= 0) continue;
-    logOdds += Math.log(clamp(fact.lr, .25, 4)) * clamp(fact.confidence, 0, 1);
-  }
-  return 1 / (1 + Math.exp(-logOdds));
-}
-
-function randomNormal() {
-  const u = Math.max(Number.EPSILON, Math.random());
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random());
-}
-
-function gammaSample(shape) {
-  if (shape < 1) return gammaSample(shape + 1) * Math.pow(Math.random(), 1 / shape);
-  const d = shape - 1 / 3;
-  const c = 1 / Math.sqrt(9 * d);
-  while (true) {
-    const x = randomNormal();
-    const v0 = 1 + c * x;
-    if (v0 <= 0) continue;
-    const v = v0 * v0 * v0;
-    const u = Math.random();
-    if (u < 1 - .0331 * x ** 4 || Math.log(u) < .5 * x * x + d * (1 - v + Math.log(v))) return d * v;
-  }
-}
-
-function betaSample(mean, concentration=22) {
-  const m = clamp(mean, .005, .995);
-  const a = gammaSample(m * concentration);
-  const b = gammaSample((1 - m) * concentration);
-  return a / (a + b);
-}
-
-function triangular(low, mode, high) {
-  if (high <= low) return low;
-  const split = (mode - low) / (high - low);
-  const u = Math.random();
-  return u < split ? low + Math.sqrt(u * (high - low) * (mode - low))
-    : high - Math.sqrt((1 - u) * (high - low) * (high - mode));
-}
-
 function percentile(sorted, fraction) { return sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * fraction))] ?? 0; }
-
-function simulate(iterations=20000) {
-  const a = state.assumptions;
-  const pLiability = posterior(a.liability, 'liability');
-  const pScope = posterior(a.scope, 'scope');
-  const pSpecials = posterior(a.specialsSupport, 'specialsSupport');
-  const pWages = posterior(a.wageSupport, 'wageSupport');
-  const pSurgery = posterior(a.surgery, 'surgery');
-  const outcomes = new Float64Array(iterations);
-  let liableCount = 0;
-  for (let i=0; i<iterations; i++) {
-    const liable = Math.random() < betaSample(pLiability) && Math.random() < betaSample(pScope) ? 1 : 0;
-    liableCount += liable;
-    const pastMedical = Math.max(0,a.specials * betaSample(pSpecials, 30)-a.noFaultPaid);
-    const supportedWages = Math.random() < betaSample(pWages) ? a.wages * triangular(.55,.82,1) : 0;
-    const futureCare = Math.random() < betaSample(pSurgery) ? triangular(a.futureLow,(a.futureLow+a.futureHigh)/2,a.futureHigh) : 0;
-    const noneconomic = (pastMedical + futureCare) * triangular(a.nonEconomicLow,a.nonEconomicMode,a.nonEconomicHigh);
-    const comparative = triangular(a.comparativeLow,(a.comparativeLow+a.comparativeHigh)/2,a.comparativeHigh);
-    const gross = liable ? (pastMedical + supportedWages + futureCare + noneconomic) * (1 - comparative) * triangular(Math.max(.1,a.settlement-.1),a.settlement,Math.min(1,a.settlement+.1)) : 0;
-    const capped = a.coverageLimit > 0 ? Math.min(gross,a.coverageLimit) : gross;
-    outcomes[i] = Math.max(0,capped-a.lien);
-  }
-  outcomes.sort();
-  const positiveOutcomes=outcomes.filter(value=>value>0);
-  const mean = outcomes.reduce((sum,value)=>sum+value,0)/iterations;
-  return {
-    outcomes, iterations, mean, liabilityRate:liableCount/iterations,
-    pLiability,pScope,pSpecials,pWages,pSurgery,
-    p10:percentile(outcomes,.10),p50:percentile(outcomes,.50),p90:percentile(outcomes,.90),
-    conditionalP50:percentile(positiveOutcomes,.50),
-  };
-}
 
 function renderChart(outcomes) {
   const svg = $('#outcome-chart');
@@ -131,13 +57,14 @@ function renderChart(outcomes) {
   const width=900,height=310,left=38,right=12,top=12,bottom=26,plotW=width-left-right,plotH=height-top-bottom,bins=52;
   const ceiling=Math.max(10000,percentile(outcomes,.98));
   const counts=new Array(bins).fill(0);
-  for (const value of outcomes) counts[Math.min(bins-1,Math.floor(value/ceiling*bins))]++;
+  const chartWeight=lastResult.iterations/outcomes.length;
+  for (const value of outcomes) counts[Math.min(bins-1,Math.floor(value/ceiling*bins))]+=chartWeight;
   const peak=Math.max(...counts,1);
   const barW=plotW/bins;
   const bars=counts.map((count,index)=>{
     const h=count/peak*plotH;
     const x=left+index*barW;
-    return `<rect x="${x.toFixed(1)}" y="${(top+plotH-h).toFixed(1)}" width="${Math.max(1,barW-2).toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="#222" opacity="${index===0?'.35':'.88'}"><title>${money(index/bins*ceiling)}–${money((index+1)/bins*ceiling)} · ${number.format(count)} scenarios</title></rect>`;
+    return `<rect x="${x.toFixed(1)}" y="${(top+plotH-h).toFixed(1)}" width="${Math.max(1,barW-2).toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="#222" opacity="${index===0?'.35':'.88'}"><title>${money(index/bins*ceiling)}–${money((index+1)/bins*ceiling)} · ${number.format(Math.round(count))} scenarios</title></rect>`;
   }).join('');
   const marker=(value,label)=>{
     const x=left+Math.min(1,value/ceiling)*plotW;
@@ -147,7 +74,7 @@ function renderChart(outcomes) {
     const y=top+plotH*(1-v);
     return `<line x1="${left}" x2="${width-right}" y1="${y}" y2="${y}" stroke="#e8e8e8"/><text x="${left-7}" y="${y+3}" text-anchor="end" font-size="8" fill="#999" font-family="DM Mono,monospace">${Math.round(peak*v)}</text>`;
   }).join('');
-  svg.innerHTML=`<title>Twenty thousand net recovery scenarios</title>${grid}${bars}${marker(lastResult.p50,'P50')}${marker(lastResult.p90,'P90')}`;
+  svg.innerHTML=`<title>${number.format(lastResult.iterations)} Monte Carlo net recovery scenarios</title>${grid}${bars}${marker(lastResult.p50,'P50')}${marker(lastResult.p90,'P90')}`;
   $('#chart-axis-mid').textContent=money(ceiling/2);
   $('#chart-axis-max').textContent=`${money(ceiling)}+`;
 }
@@ -155,6 +82,7 @@ function renderChart(outcomes) {
 const controls = [
   {key:'liability',label:'Liability starting probability',type:'range',min:.1,max:.9,step:.01,format:v=>`${Math.round(v*100)}%`},
   {key:'scope',label:'Employment-scope starting probability',type:'range',min:.1,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
+  {key:'liabilityScopeDependence',label:'Chance liability and scope share a percentile draw',type:'range',min:0,max:.8,step:.05,format:v=>`${Math.round(v*100)}%`},
   {key:'specialsSupport',label:'Past medical support prior',type:'range',min:.1,max:.99,step:.01,format:v=>`${Math.round(v*100)}%`},
   {key:'wageSupport',label:'Wage support prior',type:'range',min:.05,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
   {key:'surgery',label:'Future surgery scenario rate',type:'range',min:.05,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
@@ -277,7 +205,7 @@ function renderFactorGraph(result) {
   ];
   const descriptors={},nodes=[],edges=[];
   const factsFor=dimension=>state.facts.filter(fact=>fact.dimension===dimension);
-  const weightedLR=dimension=>factsFor(dimension).reduce((value,fact)=>value*Math.pow(clamp(fact.lr,.25,4),clamp(fact.confidence,0,1)),1);
+  const weightedLR=dimension=>evidenceLikelihoodRatio(state.facts,dimension);
   function node(id,x,y,w,h,kind,title,metric,caption) {
     descriptors[id]={kind,title,metric,caption,items:[]};
     nodes.push(`<g class="factor-node factor-node-${kind}" data-node="${escapeSvg(id)}" tabindex="0" role="button" aria-label="${escapeSvg(`${title}: ${metric}. Select for details.`)}"><rect class="factor-node-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><text class="factor-node-kind" x="${x+13}" y="${y+18}">${kind==='evidence'?'ANALYST FACTS':kind==='probability'?'POSTERIOR':'SIMULATION'}</text><text class="factor-node-title" x="${x+13}" y="${y+41}">${escapeSvg(title)}</text><text class="factor-node-metric" x="${x+13}" y="${y+64}">${escapeSvg(metric)}</text><text class="factor-node-caption" x="${x+13}" y="${y+h-9}">${escapeSvg(caption)}</text></g>`);
@@ -288,15 +216,15 @@ function renderFactorGraph(result) {
     const evidenceId=`${group.id}-evidence`,posteriorId=`${group.id}-posterior`;
     node(evidenceId,20,group.y,245,82,'evidence',group.label,`${facts.length} fact${facts.length===1?'':'s'} · weighted LR ${lr.toFixed(2)}×`,'Analyst inputs · source confidence');
     node(posteriorId,315,group.y,235,82,'probability',group.label,pct(group.p),`Starting value ${pct(prior)} · evidence-adjusted`);
-    descriptors[evidenceId].copy='Observed case facts update the starting odds through confidence-weighted likelihood ratios. These are analyst judgments, not learned parameters.';
+    descriptors[evidenceId].copy='Observed case facts update starting odds through confidence-weighted likelihood ratios. Same-source contributions are discounted by the square root of the number of facts from that source; weights are analyst judgments, not learned parameters.';
     descriptors[evidenceId].items=facts.length?facts.map(fact=>`${fact.text} — LR ${Number(fact.lr).toFixed(2)}× · ${Math.round(fact.confidence*100)}% confidence${fact.source?` · ${fact.source}`:''}`):['No analyst facts are currently assigned to this factor.'];
     descriptors[posteriorId].copy='This evidence-adjusted probability is used as the mean of a Beta distribution in each Monte Carlo trial.';
     descriptors[posteriorId].items=[`Starting probability: ${pct(prior)}`,`Combined confidence-weighted likelihood ratio: ${lr.toFixed(2)}×`,`Posterior probability: ${pct(group.p)}`,'Sampling distribution: Beta, concentration 22'];
     connect(265,group.y+41,315,group.y+41,18);
   }
   node('liability-gate',620,124,235,104,'model','Liability gate',pct(result.liabilityRate),'Both mechanism and scope must pass');
-  descriptors['liability-gate'].copy='Each simulation samples mechanism liability and employment scope independently. The recovery scenario proceeds only when both sampled gates pass.';
-  descriptors['liability-gate'].items=[`Mechanism posterior: ${pct(result.pLiability)}`,`Employment-scope posterior: ${pct(result.pScope)}`,`Simulated conjunction frequency: ${pct(result.liabilityRate)}`,'Assumption: the two gates are independent.'];
+  descriptors['liability-gate'].copy='Each trial samples mechanism and employment scope. At the configured rate both gates use the same percentile draw; otherwise each uses a separate draw. Recovery proceeds only when both pass.';
+  descriptors['liability-gate'].items=[`Mechanism posterior: ${pct(result.pLiability)}`,`Employment-scope posterior: ${pct(result.pScope)}`,`Simulated conjunction frequency: ${pct(result.liabilityRate)}`,`Shared percentile draw: ${pct(result.gateDependence)} · 0% means separate draws`];
   node('damages',620,326,235,104,'model','Supported damages','5 uncertain components','Medical · wages · surgery · fault · multiplier');
   descriptors['damages'].copy='Sampled support and dollar factors determine gross damages. Past medical charges are reduced by exhausted no-fault benefits.';
   descriptors['damages'].items=[`Medical support: ${pct(result.pSpecials)} · specials ${money(state.assumptions.specials)}`,`Wage support: ${pct(result.pWages)} · claim ${money(state.assumptions.wages)}`,`Future surgery: ${pct(result.pSurgery)} · range ${money(state.assumptions.futureLow)}–${money(state.assumptions.futureHigh)}`,`Noneconomic multiplier: ${state.assumptions.nonEconomicLow.toFixed(2)}–${state.assumptions.nonEconomicHigh.toFixed(2)}×`,`Comparative fault: ${(state.assumptions.comparativeLow*100).toFixed(0)}–${(state.assumptions.comparativeHigh*100).toFixed(0)}%`];
@@ -325,8 +253,8 @@ function renderFactorGraph(result) {
   select(descriptors[selectedGraphNode]?selectedGraphNode:'liability-posterior');
 }
 
-const SIMULATION_ITERATIONS=20000;
-const SIMULATION_BATCH=1000;
+const SIMULATION_ITERATIONS=1_000_000;
+let cancelSimulation;
 let activeRun=0;
 function renderResult(result, complete=false) {
   lastResult=result;
@@ -334,57 +262,81 @@ function renderResult(result, complete=false) {
   $('#result-conditional-median').textContent=money(result.conditionalP50);
   $('#result-range').textContent=`${money(result.p10)} — ${money(result.p90)}`;
   $('#result-liability').textContent=`${(result.liabilityRate*100).toFixed(1)}%`;
+  $('#result-zero-rate').textContent=`${(result.zeroRate*100).toFixed(1)}%`;
+  $('#result-limit-rate').textContent=`${(result.policyLimitRate*100).toFixed(1)}%`;
   $('#result-count').textContent=number.format(result.iterations);
   $('#result-updated').textContent=complete?`Completed ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`:'Live · updating from fresh draws';
   $('#result-p10').textContent=money(result.p10);$('#result-p50').textContent=money(result.p50);$('#result-p90').textContent=money(result.p90);$('#result-mean').textContent=money(result.mean);
   renderChart(result.outcomes);
   renderFactorGraph(result);
+  const focusList=$('#investigation-focus-list');
+  if(focusList) focusList.replaceChildren(...result.focus.slice(0,5).map((item,index)=>{
+    const row=document.createElement('article');row.className='focus-row';
+    const rank=document.createElement('span');rank.className='focus-rank';rank.textContent=String(index+1).padStart(2,'0');
+    const body=document.createElement('div');body.className='focus-body';
+    const title=document.createElement('strong');title.textContent=item.label;
+    const score=document.createElement('span');score.className='focus-score';score.textContent=`Relative priority ${item.priorityScore}/100`;
+    const swing=document.createElement('p');swing.textContent=`Conditional mean: ${money(item.meanWithFactor)} with factor vs ${money(item.meanWithoutFactor)} without · ${money(item.conditionalSwing)} swing · factor present in ${Math.round(item.probability*100)}% of trials`;
+    const action=document.createElement('p');action.className='focus-action';action.textContent=item.action;
+    body.append(title,score,swing,action);row.append(rank,body);
+    const target=(window.caseRecords||[]).find(record=>{
+      const haystack=`${record.title} ${record.description}`.toLowerCase();
+      const needles={liability:['three different accounts','scene photographs','police report'],scope:['vehicle assignment','dispatch'],medical:['itemized','medical ledger','specials'],wages:['commission records','1099','wage'],surgery:['surgery','orthopaedic'],comparativeFault:['liability note','collision','incident accounts']};
+      return (needles[item.key]||[]).some(needle=>haystack.includes(needle));
+    });
+    if(target){const open=document.createElement('button');open.type='button';open.textContent='Open related record ↗';open.addEventListener('click',()=>window.dispatchEvent(new CustomEvent('case:open-record',{detail:target})));body.append(open);}
+    return row;
+  }));
   const posteriorLine=$('#posterior-note');
   if(posteriorLine) posteriorLine.textContent=`Evidence-adjusted rates · mechanism ${Math.round(result.pLiability*100)}% · scope ${Math.round(result.pScope*100)}% · specials ${Math.round(result.pSpecials*100)}% · wages ${Math.round(result.pWages*100)}% · future surgery ${Math.round(result.pSurgery*100)}%`;
 }
 async function run() {
+  clearTimeout(runTimer);
+  cancelSimulation?.();
   const runId=++activeRun;
   const button=$('#run-simulation');
-  const outcomes=new Float64Array(SIMULATION_ITERATIONS);
-  let completed=0,liableCount=0,sum=0;
   button.disabled=true;
   button.setAttribute('aria-busy','true');
+  button.textContent=`Simulating 0 / ${number.format(SIMULATION_ITERATIONS)}…`;
+  $('#result-updated').textContent='Starting one million trials…';
   try {
-    while(completed<SIMULATION_ITERATIONS){
-      const batchSize=Math.min(SIMULATION_BATCH,SIMULATION_ITERATIONS-completed);
-      const batch=simulate(batchSize);
-      outcomes.set(batch.outcomes,completed);
-      completed+=batchSize;
-      liableCount+=batch.liabilityRate*batchSize;
-      for(const value of batch.outcomes)sum+=value;
-      const sample=outcomes.slice(0,completed);
-      sample.sort();
-      const positive=sample.filter(value=>value>0);
-      const result={...batch,outcomes:sample,iterations:completed,mean:sum/completed,liabilityRate:liableCount/completed,
-        p10:percentile(sample,.10),p50:percentile(sample,.50),p90:percentile(sample,.90),conditionalP50:percentile(positive,.50)};
-      renderResult(result,false);
-      button.textContent=`Simulating ${number.format(completed)} / ${number.format(SIMULATION_ITERATIONS)}…`;
-      $('#result-updated').textContent=`${number.format(completed)} of ${number.format(SIMULATION_ITERATIONS)} trials · live`;
-      await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
-      if(runId!==activeRun)return;
-    }
-    const finalSample=outcomes;
-    finalSample.sort();
-    const positive=finalSample.filter(value=>value>0);
-    const result={...lastResult,outcomes:finalSample,iterations:SIMULATION_ITERATIONS,mean:sum/SIMULATION_ITERATIONS,liabilityRate:liableCount/SIMULATION_ITERATIONS,
-      p10:percentile(finalSample,.10),p50:percentile(finalSample,.50),p90:percentile(finalSample,.90),conditionalP50:percentile(positive,.50)};
-    renderResult(result,true);
-    return result;
+    return await new Promise((resolve,reject)=>{
+      const worker=new Worker(new URL('./simulation-worker.mjs?build=20261002-million',import.meta.url),{type:'module'});
+      const finish=(result,error)=>{
+        worker.terminate();
+        if(runId===activeRun)cancelSimulation=undefined;
+        if(error)reject(error);else resolve(result);
+      };
+      cancelSimulation=()=>finish(undefined);
+      worker.onmessage=({data})=>{
+        if(runId!==activeRun)return;
+        if(data.type==='error'){finish(undefined,new Error(data.message));return;}
+        if(data.type==='progress'){
+          button.textContent=`Simulating ${number.format(data.completed)} / ${number.format(data.total)}…`;
+          $('#result-updated').textContent=`${number.format(data.completed)} of ${number.format(data.total)} trials · live`;
+          return;
+        }
+        if(data.type==='result'){
+          renderResult(data.result,data.complete);
+          if(data.complete)finish(data.result);
+        }
+      };
+      worker.onerror=event=>finish(undefined,new Error(event.message||'Simulation worker failed.'));
+      worker.postMessage({assumptions:{...state.assumptions},facts:state.facts.map(fact=>({...fact}))});
+    });
+  } catch(error){
+    if(runId===activeRun)$('#result-updated').textContent=`Simulation failed: ${error.message}`;
+    throw error;
   } finally {
     if(runId===activeRun){
       button.disabled=false;
       button.removeAttribute('aria-busy');
-      button.innerHTML='Run 20,000 simulations <span>↗</span>';
+      button.innerHTML='Run 1,000,000 simulations <span>↗</span>';
     }
   }
 }
 let runTimer;
-function scheduleRun(){clearTimeout(runTimer);activeRun++;runTimer=setTimeout(run,180);}
+function scheduleRun(){clearTimeout(runTimer);cancelSimulation?.();activeRun++;runTimer=setTimeout(run,180);}
 
 function renderEvidence(records) {
   const query=$('#record-search').value.trim().toLowerCase();
@@ -444,7 +396,7 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
   }
   function modelSnapshot(){
     return {assumptions:{...state.assumptions},facts:state.facts.map(({id,text,source,dimension,lr,confidence})=>({id,text,source,dimension,lr,confidence})),
-      latestResult:lastResult?{iterations:lastResult.iterations,mean:lastResult.mean,p10:lastResult.p10,p50:lastResult.p50,p90:lastResult.p90,conditionalP50:lastResult.conditionalP50,liabilityRate:lastResult.liabilityRate,pLiability:lastResult.pLiability,pScope:lastResult.pScope,pSpecials:lastResult.pSpecials,pWages:lastResult.pWages,pSurgery:lastResult.pSurgery}:null};
+      latestResult:lastResult?{iterations:lastResult.iterations,mean:lastResult.mean,p10:lastResult.p10,p50:lastResult.p50,p90:lastResult.p90,conditionalP50:lastResult.conditionalP50,liabilityRate:lastResult.liabilityRate,zeroRate:lastResult.zeroRate,policyLimitRate:lastResult.policyLimitRate,gateDependence:lastResult.gateDependence,focus:lastResult.focus,pLiability:lastResult.pLiability,pScope:lastResult.pScope,pSpecials:lastResult.pSpecials,pWages:lastResult.pWages,pSurgery:lastResult.pSurgery}:null};
   }
   window.caseAgentTools={
     getOverview(){
@@ -474,27 +426,30 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
     },
     getModel(){return modelSnapshot();},
     getOutcomes(){return modelSnapshot().latestResult;},
-    addFact(input){
+    async addFact(input){
       const values=normalizeFact(input);
       const fact={id:crypto.randomUUID(),...values,seeded:false};
-      state.facts.unshift(fact);refreshAfterInputChange();void run();
-      return {saved:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},persistence:'Browser local storage'};
+      state.facts.unshift(fact);refreshAfterInputChange();
+      const result=await run();
+      return {saved:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},simulationCompleted:!!result,persistence:'Browser local storage'};
     },
-    updateFact(input){
+    async updateFact(input){
       const fact=state.facts.find(item=>item.id===String(input.id));
       if(!fact)throw new Error('Analyst fact not found. Use get_case_model to see fact IDs.');
-      Object.assign(fact,normalizeFact(input,fact));refreshAfterInputChange();void run();
-      return {updated:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},persistence:'Browser local storage'};
+      Object.assign(fact,normalizeFact(input,fact));refreshAfterInputChange();
+      const result=await run();
+      return {updated:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},simulationCompleted:!!result,persistence:'Browser local storage'};
     },
-    updateAssumption({key,value}){
+    async updateAssumption({key,value}){
       const control=controls.find(item=>item.key===String(key));
       if(!control)throw new Error('Unsupported assumption key. Use get_case_model to see editable assumptions.');
       const numeric=Number(value);
       if(!Number.isFinite(numeric)||numeric<control.min||numeric>control.max)throw new Error(`${control.label} must be between ${control.min} and ${control.max}.`);
       if(key==='futureLow'&&numeric>state.assumptions.futureHigh)throw new Error('Future care low cannot exceed future care high.');
       if(key==='futureHigh'&&numeric<state.assumptions.futureLow)throw new Error('Future care high cannot be below future care low.');
-      state.assumptions[key]=numeric;save();renderAssumptions();void run();
-      return {updated:true,key,value:numeric,persistence:'Browser local storage'};
+      state.assumptions[key]=numeric;save();renderAssumptions();
+      const result=await run();
+      return {updated:true,key,value:numeric,simulationCompleted:!!result,persistence:'Browser local storage'};
     },
     async runSimulation(){
       const result=await run();

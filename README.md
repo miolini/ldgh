@@ -22,8 +22,12 @@ The earlier weight cache remains resumable at `/api/model-cache/status` and `/ap
 - See upcoming calendar events and source-backed case issues.
 - Scrub the matter timeline, filter notes, communications, tasks, calendar events, documents, and expenses, then inspect a selected record.
 - Open a provider-view preview; it is a local mock and does not share or transmit data.
+- Run 1,000,000 Monte Carlo trials in a browser background worker, with live progress, outcome distributions, and investigation priorities ranked by model sensitivity.
+- Adjust evidence weights and scenario assumptions, including dependence between liability and employment scope. Same-source evidence receives a partial correlation discount.
 - Uses the local JSON seed snapshot, not a live Clio connection. It does not write to Clio.
 
 ## Case chat
 
-The dashboard chat automatically prepares the case prefix from the snapshot and sends it through the backend proxy. Responses stream into the chat panel. Confirm important dates, amounts, and procedural statements against the source records.
+The dashboard chat automatically prepares the case prefix from the snapshot and sends it through the backend proxy. Responses stream into the chat panel and support Markdown. The local agent can make up to 100 tool actions per reply to search records, inspect model inputs, add or update investigator facts and assumptions, and run simulations. Conversation context retains up to eight recent turns and preserves complete tool exchanges. Confirm important dates, amounts, and procedural statements against the source records.
+
+The outcome model uses illustrative analyst inputs and has not been calibrated to actual case outcomes. Investigation priorities are sensitivity estimates rather than fraud findings or expected case values.

@@ -1,4 +1,5 @@
 import { buildCaseContext } from './case-context.mjs';
+import { runToolConversation, settleConversationTurn } from './agent-workflow.mjs';
 
 const API_ROOT = '/api/llm';
 const MODEL_ID = 'qwen3.8-27b-uncensored';
@@ -12,8 +13,8 @@ const toolDefinitions = [
   {type:'function',function:{name:'get_case_outcomes',description:'Read the latest Monte Carlo outcome distribution summary, including trial count, mean, median, percentiles, and liability scenario frequency.',parameters:{type:'object',properties:{},additionalProperties:false}}},
   {type:'function',function:{name:'add_analyst_fact',description:'Add an analyst fact to browser local storage and update the model. Use only an observation supplied by the user or found in cited case records; never invent evidence.',parameters:{type:'object',properties:{text:{type:'string'},source:{type:'string'},dimension:{type:'string',enum:['liability','scope','specialsSupport','wageSupport','surgery','integrity']},lr:{type:'number',minimum:.25,maximum:4,description:'Likelihood ratio; 1 is neutral.'},confidence:{type:'number',minimum:0,maximum:1}},required:['text','source','dimension','lr','confidence'],additionalProperties:false}}},
   {type:'function',function:{name:'update_analyst_fact',description:'Update an existing analyst fact in browser local storage and update the model. Use the fact ID returned by get_case_model.',parameters:{type:'object',properties:{id:{type:'string'},text:{type:'string'},source:{type:'string'},dimension:{type:'string',enum:['liability','scope','specialsSupport','wageSupport','surgery','integrity']},lr:{type:'number',minimum:.25,maximum:4},confidence:{type:'number',minimum:0,maximum:1}},required:['id'],additionalProperties:false}}},
-  {type:'function',function:{name:'update_case_assumption',description:'Change an editable numeric scenario assumption in browser local storage. Values must remain within the UI range; the dashboard reruns the model.',parameters:{type:'object',properties:{key:{type:'string',enum:['liability','scope','specialsSupport','wageSupport','surgery','specials','wages','noFaultPaid','coverageLimit','lien','futureLow','futureHigh','nonEconomicMode','comparativeHigh','settlement']},value:{type:'number'}},required:['key','value'],additionalProperties:false}}},
-  {type:'function',function:{name:'run_case_simulation',description:'Run 20,000 fresh Monte Carlo trials in the dashboard and return the updated outcome summary.',parameters:{type:'object',properties:{},additionalProperties:false}}},
+  {type:'function',function:{name:'update_case_assumption',description:'Change an editable numeric scenario assumption in browser local storage. Values must remain within the UI range; the dashboard reruns the model.',parameters:{type:'object',properties:{key:{type:'string',enum:['liability','scope','liabilityScopeDependence','specialsSupport','wageSupport','surgery','specials','wages','noFaultPaid','coverageLimit','lien','futureLow','futureHigh','nonEconomicMode','comparativeHigh','settlement']},value:{type:'number'}},required:['key','value'],additionalProperties:false}}},
+  {type:'function',function:{name:'run_case_simulation',description:'Run 1,000,000 fresh Monte Carlo trials in the dashboard and return the updated outcome summary.',parameters:{type:'object',properties:{},additionalProperties:false}}},
 ];
 
 const toolLabels = {
@@ -27,6 +28,111 @@ function visibleAnswer(text) {
   const closing = text.indexOf('</think>', opening);
   if (closing < 0) return text.slice(0, opening);
   return text.slice(0, opening) + text.slice(closing + '</think>'.length).trimStart();
+}
+
+function appendMarkdownInline(parent, source) {
+  const pattern = /\[([^\]]+)\]\(([^\s)]+)\)|\*\*([^*]+)\*\*|__([^_]+)__|\*([^*]+)\*|_([^_]+)_|~~([^~]+)~~|`([^`]+)`|(\n)/g;
+  let cursor = 0;
+  for (const match of source.matchAll(pattern)) {
+    if (match.index > cursor) parent.append(document.createTextNode(source.slice(cursor, match.index)));
+    const [token, linkText, rawHref, boldA, boldB, italicA, italicB, strike, code] = match;
+    if (linkText !== undefined) {
+      let url;
+      try { url = new URL(rawHref, window.location.href); } catch { url = undefined; }
+      if (url && ['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+        const anchor = document.createElement('a');
+        anchor.href = url.href;
+        anchor.textContent = linkText;
+        if (url.protocol !== 'mailto:' && url.origin !== window.location.origin) {
+          anchor.target = '_blank';
+          anchor.rel = 'noopener noreferrer';
+        }
+        parent.append(anchor);
+      } else parent.append(document.createTextNode(linkText));
+    } else if (boldA || boldB) {
+      const element = document.createElement('strong'); element.textContent = boldA ?? boldB; parent.append(element);
+    } else if (italicA || italicB) {
+      const element = document.createElement('em'); element.textContent = italicA ?? italicB; parent.append(element);
+    } else if (strike) {
+      const element = document.createElement('del'); element.textContent = strike; parent.append(element);
+    } else if (code !== undefined) {
+      const element = document.createElement('code'); element.textContent = code; parent.append(element);
+    } else if (token === '\n') parent.append(document.createElement('br'));
+    cursor = match.index + token.length;
+  }
+  if (cursor < source.length) parent.append(document.createTextNode(source.slice(cursor)));
+}
+
+function renderMarkdown(container, markdown) {
+  container.replaceChildren();
+  container.classList.add('chat-markdown');
+  const lines = String(markdown ?? '').replaceAll('\r\n', '\n').split('\n');
+  let index = 0;
+  const isBlockStart = line => /^\s*(?:#{1,6}\s|```|>\s?|[-*+]\s+|\d+[.)]\s+)/.test(line);
+  while (index < lines.length) {
+    if (!lines[index].trim()) { index++; continue; }
+    const fence = lines[index].match(/^\s*```([^\s`]*)\s*$/);
+    if (fence) {
+      index++;
+      const codeLines = [];
+      while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) codeLines.push(lines[index++]);
+      if (index < lines.length) index++;
+      const pre = document.createElement('pre');
+      const code = document.createElement('code');
+      if (fence[1]) code.className = `language-${fence[1].replace(/[^a-z0-9_-]/gi, '')}`;
+      code.textContent = codeLines.join('\n'); pre.append(code); container.append(pre);
+      continue;
+    }
+    const heading = lines[index].match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (heading) {
+      const element = document.createElement(`h${heading[1].length}`);
+      appendMarkdownInline(element, heading[2]); container.append(element); index++; continue;
+    }
+    if (/^\s*(?:---+|\*\*\*+|___+)\s*$/.test(lines[index])) {
+      container.append(document.createElement('hr')); index++; continue;
+    }
+    const tableSeparator = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1] ?? '');
+    if (lines[index].includes('|') && tableSeparator) {
+      const cells = line => line.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim());
+      const table = document.createElement('table');
+      const head = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      for (const value of cells(lines[index])) { const th = document.createElement('th'); appendMarkdownInline(th, value); headerRow.append(th); }
+      head.append(headerRow); table.append(head); index += 2;
+      const body = document.createElement('tbody');
+      while (index < lines.length && lines[index].includes('|') && lines[index].trim()) {
+        const row = document.createElement('tr');
+        for (const value of cells(lines[index])) { const td = document.createElement('td'); appendMarkdownInline(td, value); row.append(td); }
+        body.append(row); index++;
+      }
+      table.append(body); container.append(table); continue;
+    }
+    if (/^\s*>/.test(lines[index])) {
+      const quote = document.createElement('blockquote');
+      while (index < lines.length && /^\s*>/.test(lines[index])) {
+        const paragraph = document.createElement('p');
+        appendMarkdownInline(paragraph, lines[index++].replace(/^\s*>\s?/, ''));
+        quote.append(paragraph);
+      }
+      container.append(quote); continue;
+    }
+    const listMatch = lines[index].match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.+)$/);
+    if (listMatch) {
+      const ordered = Boolean(listMatch[2]);
+      const list = document.createElement(ordered ? 'ol' : 'ul');
+      while (index < lines.length) {
+        const item = lines[index].match(/^\s*(?:([-*+])|(\d+)[.)])\s+(.+)$/);
+        if (!item || Boolean(item[2]) !== ordered) break;
+        const li = document.createElement('li'); appendMarkdownInline(li, item[3]); list.append(li); index++;
+      }
+      container.append(list); continue;
+    }
+    const paragraphLines = [];
+    while (index < lines.length && lines[index].trim() && !(paragraphLines.length && isBlockStart(lines[index]))) paragraphLines.push(lines[index++]);
+    const paragraph = document.createElement('p');
+    appendMarkdownInline(paragraph, paragraphLines.join('\n'));
+    container.append(paragraph);
+  }
 }
 
 export async function initializeCaseChat(data) {
@@ -91,9 +197,22 @@ export async function initializeCaseChat(data) {
     transcript.querySelector('.chat-empty')?.remove();
     const message=document.createElement('article');message.className=`chat-message chat-message-${role}`;
     const label=document.createElement('span');label.className='chat-speaker';label.textContent=role==='user'?'You':'Local agent';
-    const content=document.createElement('p');content.textContent=text;message.append(label,content);transcript.append(message);
+    const content=document.createElement(role==='user'?'p':'div');content.className=role==='user'?'chat-user-text':'chat-markdown';
+    if(role==='user')content.textContent=text;else renderMarkdown(content,text);
+    message.append(label,content);transcript.append(message);
     transcript.scrollTop=transcript.scrollHeight;
     return {message,content};
+  }
+
+  function compactTranscript() {
+    const userTurns=[...transcript.querySelectorAll(':scope > .chat-message-user')];
+    if(userTurns.length<=8)return;
+    const firstKept=userTurns.at(-8);
+    while(transcript.firstElementChild&&transcript.firstElementChild!==firstKept)transcript.firstElementChild.remove();
+    let notice=transcript.querySelector('.chat-history-note');
+    if(!notice){notice=document.createElement('div');notice.className='chat-history-note';}
+    notice.textContent='Earlier turns were removed from this chat and are no longer in context.';
+    transcript.prepend(notice);
   }
 
   function addToolActivity(message, name, result) {
@@ -124,40 +243,26 @@ export async function initializeCaseChat(data) {
   };
 
   async function completeWithTools(messages, signal, reply) {
-    let callsMade=0;
-    for(let round=0;round<5;round++){
-      $('#chat-status').textContent=round?'Preparing response from case tool results…':'Asking the local agent…';
-      const response=await fetch(`${API_ROOT}/chat/completions`,{
-        method:'POST',headers:{'Content-Type':'application/json'},signal,
-        body:JSON.stringify({model:MODEL_ID,messages,tools:toolDefinitions,tool_choice:'auto',parallel_tool_calls:false,stream:false,max_tokens:1400,temperature:.2,top_p:.9}),
-      });
-      if(!response.ok){const detail=await response.text();throw new Error(`Local agent request failed (HTTP ${response.status})${detail?`: ${detail.slice(0,500)}`:''}`);}
-      const payload=await response.json();
-      const assistant=payload.choices?.[0]?.message;
-      if(!assistant)throw new Error('Local agent returned an invalid response.');
-      const calls=Array.isArray(assistant.tool_calls)?assistant.tool_calls:[];
-      if(!calls.length)return typeof assistant.content==='string'?assistant.content:'';
-      messages.push({role:'assistant',content:assistant.content??null,tool_calls:calls});
-      for(const call of calls){
-        if(++callsMade>8)throw new Error('The assistant reached the maximum of eight tool actions for one reply.');
-        const name=call.function?.name;
-        const id=String(call.id??`tool-${round}-${callsMade}`);
-        let result;
-        try{
-          if(!Object.hasOwn(localTools,name))throw new Error('This tool is not available.');
-          let args={};
-          try{args=JSON.parse(call.function?.arguments||'{}');}catch{throw new Error('The model supplied invalid tool arguments.');}
-          $('#chat-status').textContent=`Using tool · ${toolLabels[name]??name}`;
-          const implementation=localTools[name];
-          if(!implementation)throw new Error('Case tools are still loading. Try again shortly.');
-          result=await implementation(args);
-          if(result===undefined)throw new Error('Case tools are still loading. Try again shortly.');
-        }catch(cause){result={error:cause.message??String(cause)};}
-        addToolActivity(reply.message,name,result);
-        messages.push({role:'tool',tool_call_id:id,name,content:JSON.stringify(result)});
-      }
-    }
-    throw new Error('The assistant reached the maximum tool-call rounds without producing a final answer.');
+    return runToolConversation(messages,{
+      signal,
+      requestCompletion:async conversation=>{
+        const response=await fetch(`${API_ROOT}/chat/completions`,{
+          method:'POST',headers:{'Content-Type':'application/json'},signal,
+          body:JSON.stringify({model:MODEL_ID,messages:conversation,tools:toolDefinitions,tool_choice:'auto',parallel_tool_calls:false,stream:false,max_tokens:1400,temperature:.2,top_p:.9}),
+        });
+        if(!response.ok){const detail=await response.text();throw new Error(`Local agent request failed (HTTP ${response.status})${detail?`: ${detail.slice(0,500)}`:''}`);}
+        return response.json();
+      },
+      executeTool:async(name,args)=>{
+        if(!Object.hasOwn(localTools,name))throw new Error('This tool is not available.');
+        $('#chat-status').textContent=`Using tool · ${toolLabels[name]??name}`;
+        const implementation=localTools[name];
+        if(!implementation)throw new Error('Case tools are still loading. Try again shortly.');
+        return implementation(args);
+      },
+      onStatus:status=>{$('#chat-status').textContent=status;},
+      onToolResult:(name,result)=>addToolActivity(reply.message,name,result),
+    });
   }
 
   async function submit(event) {
@@ -169,21 +274,27 @@ export async function initializeCaseChat(data) {
       $('#chat-status').textContent='Waiting for the local agent…';setError();input.value='';
     appendMessage('user',question);
     const reply=appendMessage('assistant','Generating response…');
-    history.push({role:'user',content:question});updateComposer();
-    const historyStart=history.length;
+    updateComposer();
+    const conversationStart=history.length+1;
+    const messages=[context.systemMessage,...history,{role:'user',content:question}];
     try {
-      const messages=[context.systemMessage,...history];
       const answer=await completeWithTools(messages,controller.signal,reply);
       if(generation===currentGeneration){
         const content=visibleAnswer(answer).trim();
         if(!content)throw new Error('Local agent returned no answer. Start a new chat and try a shorter question.');
-        reply.content.textContent=content;history.push(...messages.slice(historyStart+2));history.push({role:'assistant',content});
+        renderMarkdown(reply.content,content);
+        history=settleConversationTurn(history,messages.slice(conversationStart),content);
+        compactTranscript();
       }
     }catch(cause){
       if(generation===currentGeneration){
-        history.length=historyStart;
-        if(cause.name==='AbortError')reply.content.textContent='Response stopped.';
-        else{reply.content.textContent='No answer was generated.';setError(cause.message??String(cause));}
+        const message=cause.name==='AbortError'
+          ?'Response stopped. Any completed tool actions are listed above.'
+          :'The response could not be completed. Any completed tool actions are listed above.';
+        history=settleConversationTurn(history,messages.slice(conversationStart),message);
+        renderMarkdown(reply.content,message);
+        compactTranscript();
+        if(cause.name!=='AbortError')setError(cause.message??String(cause));
       }
     }finally{
       if(generation===currentGeneration){generating=false;controller=undefined;progress.hidden=true;progress.setAttribute('value','0');$('#chat-status').textContent=connected?'Local agent ready':'Local agent unavailable';updateComposer();input.focus();}

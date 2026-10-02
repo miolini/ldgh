@@ -1,5 +1,5 @@
-import { initializeCaseChat } from './chat.mjs?build=20261002-local-agent-label';
-import { initializeInvestigatorWorkspace } from './analysis-model.mjs?build=20261002-local-agent-label';
+import { initializeCaseChat } from './chat.mjs?build=20261002-million';
+import { initializeInvestigatorWorkspace } from './analysis-model.mjs?build=20261002-million';
 
 const categoryConfig = [
   { key: 'notes', label: 'Notes', singular: 'Note', color: '#181818', radius: 3.45 },
