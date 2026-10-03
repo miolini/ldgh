@@ -1,21 +1,12 @@
-import { evidenceLikelihoodRatio } from './probabilistic-model.mjs';
+import { dimensions, defaultAssumptions, assumptionControls as controls, normalizeAssumptions, validateAssumptionUpdate } from './model-config.mjs?build=20261002-expanded-graph';
+import { buildFactorGraph } from './factor-graph.mjs?build=20261002-expanded-graph';
 
 const STORAGE_KEY = 'fieldnote-sapini-analysis-v2';
 const number = new Intl.NumberFormat('en-US', {maximumFractionDigits:0});
 const money = value => `$${number.format(Math.max(0, value))}`;
 const clamp = (n, min, max) => Math.min(max, Math.max(min, Number(n)));
-const dimensions = {
-  liability: 'Liability', specialsSupport: 'Past medical support',
-  scope:'Employment scope', wageSupport: 'Wage support', surgery: 'Future surgery', integrity: 'Integrity review only',
-};
-
 const defaults = {
-  assumptions: {
-    liability: .62, scope: .62, liabilityScopeDependence:0, specialsSupport: .72, wageSupport: .38, surgery: .55,
-    specials: 118400, wages: 214000, futureLow: 18000, futureHigh: 65000,
-    nonEconomicLow: .7, nonEconomicMode: 1.45, nonEconomicHigh: 2.8,
-    comparativeLow: .05, comparativeHigh: .35, settlement: .72, coverageLimit:100000, lien:22180, noFaultPaid:50000,
-  },
+  assumptions: defaultAssumptions,
   facts: [
     {id:'seed-accounts', text:'Incident accounts differ across the file', source:'Liability note · May 23, 2023', dimension:'liability', lr:.72, confidence:.55, seeded:true},
     {id:'seed-police', text:'No police accident report is recorded', source:'Matter snapshot · source inventory', dimension:'liability', lr:.88, confidence:.35, seeded:true},
@@ -32,7 +23,7 @@ function loadState() {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (!stored || !stored.assumptions || !Array.isArray(stored.facts)) return structuredClone(defaults);
     return {
-      assumptions: {...defaults.assumptions, ...stored.assumptions},
+      assumptions: normalizeAssumptions(stored.assumptions),
       facts: stored.facts.map(fact => ({...fact, lr:clamp(fact.lr, .25, 4), confidence:clamp(fact.confidence, 0, 1)})),
     };
   } catch { return structuredClone(defaults); }
@@ -40,6 +31,7 @@ function loadState() {
 
 const state = loadState();
 let lastResult;
+let pendingInputs=false;
 let editingFactId = null;
 let navigateWorkspace;
 const $ = selector => document.querySelector(selector);
@@ -79,39 +71,27 @@ function renderChart(outcomes) {
   $('#chart-axis-max').textContent=`${money(ceiling)}+`;
 }
 
-const controls = [
-  {key:'liability',label:'Liability starting probability',type:'range',min:.1,max:.9,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'scope',label:'Employment-scope starting probability',type:'range',min:.1,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'liabilityScopeDependence',label:'Chance liability and scope share a percentile draw',type:'range',min:0,max:.8,step:.05,format:v=>`${Math.round(v*100)}%`},
-  {key:'specialsSupport',label:'Past medical support prior',type:'range',min:.1,max:.99,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'wageSupport',label:'Wage support prior',type:'range',min:.05,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'surgery',label:'Future surgery scenario rate',type:'range',min:.05,max:.95,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'specials',label:'Past medical specials claimed',type:'number',min:0,max:1000000,step:1000,format:money},
-  {key:'wages',label:'Wage loss claimed',type:'number',min:0,max:1000000,step:1000,format:money},
-  {key:'noFaultPaid',label:'No-fault paid/exhausted · excluded',type:'number',min:0,max:500000,step:1000,format:money},
-  {key:'coverageLimit',label:'Per-person coverage limit · 0 = uncapped',type:'number',min:0,max:5000000,step:5000,format:v=>v===0?'Uncapped':money(v)},
-  {key:'lien',label:'Recorded Medicaid lien',type:'number',min:0,max:500000,step:500,format:money},
-  {key:'futureLow',label:'Future care · low',type:'number',min:0,max:500000,step:1000,format:money},
-  {key:'futureHigh',label:'Future care · high',type:'number',min:0,max:500000,step:1000,format:money},
-  {key:'nonEconomicMode',label:'Non-economic multiplier · mode',type:'range',min:.2,max:5,step:.05,format:v=>`${v.toFixed(2)}×`},
-  {key:'comparativeHigh',label:'Comparative fault · high',type:'range',min:0,max:.8,step:.01,format:v=>`${Math.round(v*100)}%`},
-  {key:'settlement',label:'Resolution factor · mode',type:'range',min:.25,max:1,step:.01,format:v=>`${Math.round(v*100)}%`},
-];
-
 function renderAssumptions() {
-  const container=$('#assumptions-grid');
-  if(!container) return;
-  container.replaceChildren(...controls.map(control=>{
-    const wrapper=document.createElement('div');wrapper.className='assumption-control';
-    const label=document.createElement('label');label.htmlFor=`assumption-${control.key}`;label.textContent=control.label;
-    const output=document.createElement('output');output.htmlFor=`assumption-${control.key}`;output.textContent=control.format(state.assumptions[control.key]);
-    const input=document.createElement('input');input.id=`assumption-${control.key}`;input.type=control.type;input.min=control.min;input.max=control.max;input.step=control.step;input.value=state.assumptions[control.key];
-    input.addEventListener('input',()=>{
-      state.assumptions[control.key]=clamp(input.value,control.min,control.max);
-      output.textContent=control.format(state.assumptions[control.key]);
-      save(); scheduleRun();
-    });
-    label.append(output);wrapper.append(label,input);return wrapper;
+  const container=$('#assumptions-grid');if(!container)return;
+  const groups=[...new Set(controls.map(c=>c.group))];
+  container.replaceChildren(...groups.map((group,index)=>{
+    const section=document.createElement('details');section.className='assumption-group';section.open=index===0;
+    const summary=document.createElement('summary');summary.textContent=group;
+    const grid=document.createElement('div');grid.className='assumption-group-controls';
+    for(const control of controls.filter(c=>c.group===group)){
+      const wrapper=document.createElement('div');wrapper.className='assumption-control';
+      const label=document.createElement('label');label.htmlFor=`assumption-${control.key}`;label.textContent=control.label;
+      const output=document.createElement('output');output.htmlFor=label.htmlFor;output.textContent=control.format(state.assumptions[control.key]);
+      const input=document.createElement('input');input.id=label.htmlFor;input.type=control.type;input.min=control.min;input.max=control.max;input.step=control.step;input.value=state.assumptions[control.key];
+      const error=document.createElement('span');error.className='assumption-error';error.setAttribute('role','status');
+      input.addEventListener('input',()=>{
+        try{state.assumptions=validateAssumptionUpdate(state.assumptions,control.key,input.value);input.setCustomValidity('');error.textContent='';output.textContent=control.format(state.assumptions[control.key]);save();scheduleRun();}
+        catch(e){input.setCustomValidity(e.message);error.textContent=e.message;}
+      });
+      input.addEventListener('change',()=>{input.value=state.assumptions[control.key];input.setCustomValidity('');error.textContent='';});
+      label.append(output);wrapper.append(label,input,error);grid.append(wrapper);
+    }
+    section.append(summary,grid);return section;
   }));
 }
 
@@ -131,9 +111,9 @@ function renderFacts() {
     const lr=document.createElement('input');lr.type='number';lr.min='.25';lr.max='4';lr.step='.05';lr.value=fact.lr;lr.title='Likelihood ratio: 1 is neutral';lr.setAttribute('aria-label',`Likelihood ratio for ${fact.text}`);
     const confidence=document.createElement('input');confidence.type='range';confidence.min='0';confidence.max='1';confidence.step='.05';confidence.value=fact.confidence;confidence.title='Source confidence';confidence.setAttribute('aria-label',`Source confidence for ${fact.text}`);
     const del=document.createElement('button');del.type='button';del.textContent='×';del.title='Remove analyst fact';del.setAttribute('aria-label',`Remove ${fact.text}`);
-    lr.addEventListener('change',()=>{fact.lr=clamp(lr.value,.25,4);lr.value=fact.lr;save();renderAnalystFacts();renderEvidence(records);run();});
+    lr.addEventListener('change',()=>{fact.lr=clamp(lr.value,.25,4);lr.value=fact.lr;save();renderAnalystFacts();renderEvidence(window.caseRecords||[]);run();});
     confidence.addEventListener('input',()=>{fact.confidence=clamp(confidence.value,0,1);save();renderAnalystFacts();scheduleRun();});
-    del.addEventListener('click',()=>{state.facts=state.facts.filter(item=>item.id!==fact.id);save();renderFacts();renderEvidence(records);run();});
+    del.addEventListener('click',()=>{state.facts=state.facts.filter(item=>item.id!==fact.id);save();renderFacts();renderEvidence(window.caseRecords||[]);run();});
     edit.append(lr,confidence,del);row.append(summary,edit);return row;
   }));
 }
@@ -191,73 +171,53 @@ function renderAnomalies() {
 }
 
 let selectedGraphNode='liability-posterior';
+let graphZoom=.85;
 function renderFactorGraph(result) {
-  const svg=$('#factor-graph');
-  if(!svg)return;
-  const pct=value=>`${(value*100).toFixed(1)}%`;
-  const escapeSvg=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));
-  const groups=[
-    {id:'liability',label:'Mechanism / liability',p:result.pLiability,y:38},
-    {id:'scope',label:'Employment scope',p:result.pScope,y:153},
-    {id:'specialsSupport',label:'Past medical support',p:result.pSpecials,y:268},
-    {id:'wageSupport',label:'Wage support',p:result.pWages,y:383},
-    {id:'surgery',label:'Future surgery',p:result.pSurgery,y:498},
-  ];
-  const descriptors={},nodes=[],edges=[];
-  const factsFor=dimension=>state.facts.filter(fact=>fact.dimension===dimension);
-  const weightedLR=dimension=>evidenceLikelihoodRatio(state.facts,dimension);
-  function node(id,x,y,w,h,kind,title,metric,caption) {
-    descriptors[id]={kind,title,metric,caption,items:[]};
-    nodes.push(`<g class="factor-node factor-node-${kind}" data-node="${escapeSvg(id)}" tabindex="0" role="button" aria-label="${escapeSvg(`${title}: ${metric}. Select for details.`)}"><rect class="factor-node-box" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><text class="factor-node-kind" x="${x+13}" y="${y+18}">${kind==='evidence'?'ANALYST FACTS':kind==='probability'?'POSTERIOR':'SIMULATION'}</text><text class="factor-node-title" x="${x+13}" y="${y+41}">${escapeSvg(title)}</text><text class="factor-node-metric" x="${x+13}" y="${y+64}">${escapeSvg(metric)}</text><text class="factor-node-caption" x="${x+13}" y="${y+h-9}">${escapeSvg(caption)}</text></g>`);
-  }
-  const connect=(x1,y1,x2,y2,curve=0)=>edges.push(`<path class="factor-edge" d="M ${x1} ${y1} C ${x1+curve} ${y1}, ${x2-curve} ${y2}, ${x2} ${y2}" marker-end="url(#factor-arrow)"/>`);
-  for(const group of groups){
-    const facts=factsFor(group.id),lr=weightedLR(group.id),prior=state.assumptions[group.id];
-    const evidenceId=`${group.id}-evidence`,posteriorId=`${group.id}-posterior`;
-    node(evidenceId,20,group.y,245,82,'evidence',group.label,`${facts.length} fact${facts.length===1?'':'s'} · weighted LR ${lr.toFixed(2)}×`,'Analyst inputs · source confidence');
-    node(posteriorId,315,group.y,235,82,'probability',group.label,pct(group.p),`Starting value ${pct(prior)} · evidence-adjusted`);
-    descriptors[evidenceId].copy='Observed case facts update starting odds through confidence-weighted likelihood ratios. Same-source contributions are discounted by the square root of the number of facts from that source; weights are analyst judgments, not learned parameters.';
-    descriptors[evidenceId].items=facts.length?facts.map(fact=>`${fact.text} — LR ${Number(fact.lr).toFixed(2)}× · ${Math.round(fact.confidence*100)}% confidence${fact.source?` · ${fact.source}`:''}`):['No analyst facts are currently assigned to this factor.'];
-    descriptors[posteriorId].copy='This evidence-adjusted probability is used as the mean of a Beta distribution in each Monte Carlo trial.';
-    descriptors[posteriorId].items=[`Starting probability: ${pct(prior)}`,`Combined confidence-weighted likelihood ratio: ${lr.toFixed(2)}×`,`Posterior probability: ${pct(group.p)}`,'Sampling distribution: Beta, concentration 22'];
-    connect(265,group.y+41,315,group.y+41,18);
-  }
-  node('liability-gate',620,124,235,104,'model','Liability gate',pct(result.liabilityRate),'Both mechanism and scope must pass');
-  descriptors['liability-gate'].copy='Each trial samples mechanism and employment scope. At the configured rate both gates use the same percentile draw; otherwise each uses a separate draw. Recovery proceeds only when both pass.';
-  descriptors['liability-gate'].items=[`Mechanism posterior: ${pct(result.pLiability)}`,`Employment-scope posterior: ${pct(result.pScope)}`,`Simulated conjunction frequency: ${pct(result.liabilityRate)}`,`Shared percentile draw: ${pct(result.gateDependence)} · 0% means separate draws`];
-  node('damages',620,326,235,104,'model','Supported damages','5 uncertain components','Medical · wages · surgery · fault · multiplier');
-  descriptors['damages'].copy='Sampled support and dollar factors determine gross damages. Past medical charges are reduced by exhausted no-fault benefits.';
-  descriptors['damages'].items=[`Medical support: ${pct(result.pSpecials)} · specials ${money(state.assumptions.specials)}`,`Wage support: ${pct(result.pWages)} · claim ${money(state.assumptions.wages)}`,`Future surgery: ${pct(result.pSurgery)} · range ${money(state.assumptions.futureLow)}–${money(state.assumptions.futureHigh)}`,`Noneconomic multiplier: ${state.assumptions.nonEconomicLow.toFixed(2)}–${state.assumptions.nonEconomicHigh.toFixed(2)}×`,`Comparative fault: ${(state.assumptions.comparativeLow*100).toFixed(0)}–${(state.assumptions.comparativeHigh*100).toFixed(0)}%`];
-  node('constraints',620,520,235,92,'model','Recovery constraints',money(state.assumptions.coverageLimit),'Coverage cap · lien · settlement factor');
-  descriptors['constraints'].copy='The scenario applies the settlement factor, caps gross recovery at the configured coverage limit, then subtracts the lien. Assumptions can be changed on the Assumptions page.';
-  descriptors['constraints'].items=[`Per-person coverage limit: ${money(state.assumptions.coverageLimit)}`,`Medicaid lien: ${money(state.assumptions.lien)}`,`Exhausted no-fault excluded: ${money(state.assumptions.noFaultPaid)}`,`Settlement factor mode: ${pct(state.assumptions.settlement)}`];
-  node('net-recovery',905,282,210,126,'model','Net recovery',money(result.p50),`80% range ${money(result.p10)}–${money(result.p90)}`);
-  descriptors['net-recovery'].copy='The output is a distribution of modeled net recovery scenarios, not a case valuation or prediction. It includes zero-recovery outcomes.';
-  descriptors['net-recovery'].items=[`Unconditional median: ${money(result.p50)}`,`Median among positive outcomes: ${money(result.conditionalP50)}`,`10th–90th percentile: ${money(result.p10)}–${money(result.p90)}`,`${number.format(result.iterations)} simulation trials`];
-  connect(550,79,620,158,26);connect(550,194,620,194,16);
-  connect(550,309,620,360,30);connect(550,424,620,378,30);connect(550,539,620,405,55);
-  connect(855,176,905,315,36);connect(855,378,905,345,32);connect(855,566,905,375,65);
-  svg.innerHTML=`<defs><marker id="factor-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#aaa"/></marker></defs><text class="factor-column-label" x="20" y="19">CASE EVIDENCE</text><text class="factor-column-label" x="315" y="19">BAYESIAN UPDATE</text><text class="factor-column-label" x="620" y="105">FACTOR INTERACTION</text><text class="factor-column-label" x="905" y="260">SIMULATED RESULT</text>${edges.join('')}${nodes.join('')}`;
+  const svg=$('#factor-graph');if(!svg)return;
+  const graph=buildFactorGraph(result.inputAssumptions||state.assumptions,result.inputFacts||state.facts,result);
+  const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+  svg.setAttribute('viewBox',`0 0 ${graph.width} ${graph.height}`);
+  svg.style.width=`${graph.width*graphZoom}px`;
+  const byId=new Map(graph.nodes.map(n=>[n.id,n]));
+  const paths=graph.edges.map(({from,to})=>{
+    const a=byId.get(from),b=byId.get(to);let x1=a.x+a.w,y1=a.y+a.h/2,x2=b.x,y2=b.y+b.h/2;
+    if(a.y===b.y&&Math.abs(b.x-a.x)>300){const gutter=a.y-16;return `<path class="factor-edge" data-from="${escape(from)}" data-to="${escape(to)}" d="M${x1},${y1} C${x1+18},${y1} ${x1+18},${gutter} ${x1+25},${gutter} L${x2-25},${gutter} C${x2-18},${gutter} ${x2-18},${y2} ${x2},${y2}" marker-end="url(#factor-arrow)"/>`;}
+    if(a.x===b.x){x1=a.x+a.w-18;x2=b.x+b.w-18;y1=a.y+a.h;y2=b.y;return `<path class="factor-edge" data-from="${escape(from)}" data-to="${escape(to)}" d="M${x1},${y1} C${x1+45},${y1+20} ${x2+45},${y2-20} ${x2},${y2}" marker-end="url(#factor-arrow)"/>`;}
+    const bend=x2>x1?Math.max(25,(x2-x1)/2):55;
+    return `<path class="factor-edge" data-from="${escape(from)}" data-to="${escape(to)}" d="M${x1},${y1} C${x1+bend},${y1} ${x2-bend},${y2} ${x2},${y2}" marker-end="url(#factor-arrow)"/>`;
+  }).join('');
+  const nodes=graph.nodes.map(n=>`<g class="factor-node factor-node-${n.kind}" data-node="${escape(n.id)}" tabindex="0" role="button" aria-label="${escape(`${n.title}: ${n.metric}. Select for details.`)}"><rect class="factor-node-box" x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="6"/><text class="factor-node-kind" x="${n.x+14}" y="${n.y+21}">${n.kind==='evidence'?'CASE OBSERVATIONS':n.kind==='probability'?'ESTIMATED PARAMETER':'LIVE SIMULATION'}</text><text class="factor-node-title" x="${n.x+14}" y="${n.y+47}">${escape(n.title)}</text><text class="factor-node-metric" x="${n.x+14}" y="${n.y+76}">${escape(n.metric)}</text><text class="factor-node-caption" x="${n.x+14}" y="${n.y+100}">${escape(n.caption)}</text></g>`).join('');
+  const headers=[[15,'EVIDENCE'],[285,'PARAMETERS'],[825,'LOSS COMPONENTS'],[1110,'RESOLUTION'],[1380,'RECOVERY']].map(([x,t])=>`<text class="factor-column-label" x="${x}" y="30">${t}</text>`).join('');
+  svg.innerHTML=`<defs><marker id="factor-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#aaa"/></marker></defs>${headers}${paths}${nodes}`;
   const select=id=>{
-    const detail=descriptors[id];if(!detail)return;
-    selectedGraphNode=id;
-    svg.querySelectorAll('.factor-node').forEach(item=>item.classList.toggle('is-selected',item.dataset.node===id));
-    $('#node-detail-type').textContent=detail.kind==='evidence'?'EVIDENCE INPUT':detail.kind==='probability'?'POSTERIOR PROBABILITY':'SCENARIO FACTOR';
-    $('#node-detail-title').textContent=detail.title;$('#node-detail-metric').textContent=detail.metric;$('#node-detail-copy').textContent=detail.copy||detail.caption;
-    $('#node-detail-list').replaceChildren(...detail.items.map(value=>{const li=document.createElement('li');li.textContent=value;return li;}));
+    const detail=byId.get(id);if(!detail)return;selectedGraphNode=id;
+    svg.querySelectorAll('.factor-node').forEach(n=>n.classList.toggle('is-selected',n.dataset.node===id));
+    svg.querySelectorAll('.factor-edge').forEach(n=>n.classList.toggle('is-connected',n.dataset.from===id||n.dataset.to===id));
+    $('#node-detail-type').textContent=detail.kind==='evidence'?'SOURCE OBSERVATIONS':detail.kind==='probability'?'ESTIMATED PARAMETER':'SAMPLED COMPONENT';
+    $('#node-detail-title').textContent=detail.title;$('#node-detail-metric').textContent=detail.metric;$('#node-detail-copy').textContent=detail.copy;
+    $('#node-detail-list').replaceChildren(...detail.items.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
+    $('#node-edit-assumptions').hidden=!detail.key;
+    $('#node-edit-assumptions').onclick=()=>{
+      $('.factor-graph-panel').classList.remove('graph-expanded');$('#graph-expand').textContent='Expand graph';$('#graph-expand').setAttribute('aria-expanded','false');
+      navigateWorkspace?.('assumptions');
+      const control=$(`#assumption-${detail.key}`)||$('#assumptions-grid input');
+      if(control){control.closest('details').open=true;control.scrollIntoView({behavior:'smooth',block:'center'});control.focus();}
+    };
   };
-  svg.querySelectorAll('.factor-node').forEach(item=>{
-    item.addEventListener('click',()=>select(item.dataset.node));
-    item.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();select(item.dataset.node);}});
+  svg.querySelectorAll('.factor-node').forEach(n=>{
+    n.addEventListener('click',()=>select(n.dataset.node));
+    n.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(n.dataset.node);}});
   });
-  select(descriptors[selectedGraphNode]?selectedGraphNode:'liability-posterior');
+  select(byId.has(selectedGraphNode)?selectedGraphNode:'liability-posterior');
+  $('#graph-node-count').textContent=`${graph.nodes.length} nodes · ${graph.edges.length} links`;
 }
 
 const SIMULATION_ITERATIONS=1_000_000;
 let cancelSimulation;
 let activeRun=0;
 function renderResult(result, complete=false) {
-  lastResult=result;
+  lastResult=result;pendingInputs=false;
+  $('#graph-live-status').textContent=complete?`${number.format(result.iterations)} trials · complete`:`${number.format(result.iterations)} cumulative trials · updating`;
   $('#result-median').textContent=money(result.p50);
   $('#result-conditional-median').textContent=money(result.conditionalP50);
   $('#result-range').textContent=`${money(result.p10)} — ${money(result.p90)}`;
@@ -276,7 +236,7 @@ function renderResult(result, complete=false) {
     const body=document.createElement('div');body.className='focus-body';
     const title=document.createElement('strong');title.textContent=item.label;
     const score=document.createElement('span');score.className='focus-score';score.textContent=`Relative priority ${item.priorityScore}/100`;
-    const swing=document.createElement('p');swing.textContent=`Conditional mean: ${money(item.meanWithFactor)} with factor vs ${money(item.meanWithoutFactor)} without · ${money(item.conditionalSwing)} swing · factor present in ${Math.round(item.probability*100)}% of trials`;
+    const swing=document.createElement('p');swing.textContent=`Conditional mean (${item.comparison}): ${money(item.meanWithFactor)} vs ${money(item.meanWithoutFactor)} · ${money(item.conditionalSwing)} difference · first group ${Math.round(item.probability*100)}% of trials`;
     const action=document.createElement('p');action.className='focus-action';action.textContent=item.action;
     body.append(title,score,swing,action);row.append(rank,body);
     const target=(window.caseRecords||[]).find(record=>{
@@ -293,7 +253,8 @@ function renderResult(result, complete=false) {
 async function run() {
   clearTimeout(runTimer);
   cancelSimulation?.();
-  const runId=++activeRun;
+  const runId=++activeRun;pendingInputs=true;
+  $('#graph-live-status').textContent=lastResult?'Recalculating · previous results until first batch':'Waiting for the first simulation batch';
   const button=$('#run-simulation');
   button.disabled=true;
   button.setAttribute('aria-busy','true');
@@ -301,7 +262,7 @@ async function run() {
   $('#result-updated').textContent='Starting one million trials…';
   try {
     return await new Promise((resolve,reject)=>{
-      const worker=new Worker(new URL('./simulation-worker.mjs?build=20261002-million',import.meta.url),{type:'module'});
+      const worker=new Worker(new URL('./simulation-worker.mjs?build=20261002-expanded-graph',import.meta.url),{type:'module'});
       const finish=(result,error)=>{
         worker.terminate();
         if(runId===activeRun)cancelSimulation=undefined;
@@ -336,7 +297,7 @@ async function run() {
   }
 }
 let runTimer;
-function scheduleRun(){clearTimeout(runTimer);cancelSimulation?.();activeRun++;runTimer=setTimeout(run,180);}
+function scheduleRun(){pendingInputs=true;$('#graph-live-status').textContent='Inputs changed · recalculating';clearTimeout(runTimer);cancelSimulation?.();activeRun++;runTimer=setTimeout(run,180);}
 
 function renderEvidence(records) {
   const query=$('#record-search').value.trim().toLowerCase();
@@ -379,6 +340,19 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
   }
   navigateWorkspace=activate;
   const factDimensions=Object.keys(dimensions);
+  const dimensionSelect=$('#fact-form select[name="dimension"]');
+  dimensionSelect.replaceChildren(...Object.entries(dimensions).map(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;return option;}));
+  const graphPanel=$('.factor-graph-panel'),expandButton=$('#graph-expand');
+  const expandGraph=expanded=>{graphPanel.classList.toggle('graph-expanded',expanded);expandButton.setAttribute('aria-expanded',String(expanded));expandButton.textContent=expanded?'Close expanded view':'Expand graph';};
+  expandButton.addEventListener('click',()=>expandGraph(!graphPanel.classList.contains('graph-expanded')));
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')expandGraph(false);});
+  $('#graph-zoom').addEventListener('change',e=>{graphZoom=Number(e.target.value);if(lastResult)renderFactorGraph(lastResult);});
+  $('#graph-fit').addEventListener('click',()=>{
+    graphZoom=Math.max(.3,Math.min(1,$('.factor-graph-scroller').clientWidth/1690));
+    const select=$('#graph-zoom');let fit=select.querySelector('option[data-fit]');if(!fit){fit=document.createElement('option');fit.dataset.fit='true';select.append(fit);}
+    fit.value=String(graphZoom);fit.textContent=`Fit · ${Math.round(graphZoom*100)}%`;select.value=String(graphZoom);
+    if(lastResult)renderFactorGraph(lastResult);
+  });
   function normalizeFact(input, current={}) {
     const text=String(input.text??current.text??'').trim();
     const source=String(input.source??current.source??'').trim();
@@ -395,13 +369,13 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
     save();renderAssumptions();renderFacts();renderEvidence(records);renderAnomalies();
   }
   function modelSnapshot(){
-    return {assumptions:{...state.assumptions},facts:state.facts.map(({id,text,source,dimension,lr,confidence})=>({id,text,source,dimension,lr,confidence})),
-      latestResult:lastResult?{iterations:lastResult.iterations,mean:lastResult.mean,p10:lastResult.p10,p50:lastResult.p50,p90:lastResult.p90,conditionalP50:lastResult.conditionalP50,liabilityRate:lastResult.liabilityRate,zeroRate:lastResult.zeroRate,policyLimitRate:lastResult.policyLimitRate,gateDependence:lastResult.gateDependence,focus:lastResult.focus,pLiability:lastResult.pLiability,pScope:lastResult.pScope,pSpecials:lastResult.pSpecials,pWages:lastResult.pWages,pSurgery:lastResult.pSurgery}:null};
+    return {method:'Illustrative scenario network, uncalibrated. Intermediate percentiles use 128-bin histograms; recovery percentiles are exact. Conditional focus scores are associations, not causal effects or value-of-information estimates.',editableControls:controls.map(({key,min,max,group})=>({key,min,max,group})),assumptions:{...state.assumptions},facts:state.facts.map(({id,text,source,dimension,lr,confidence})=>({id,text,source,dimension,lr,confidence})),
+      latestResult:lastResult?{iterations:lastResult.iterations,mean:lastResult.mean,p10:lastResult.p10,p50:lastResult.p50,p90:lastResult.p90,conditionalP50:lastResult.conditionalP50,liabilityRate:lastResult.liabilityRate,zeroRate:lastResult.zeroRate,policyLimitRate:lastResult.policyLimitRate,gateDependence:lastResult.gateDependence,nodeEstimates:lastResult.nodeEstimates,probabilities:lastResult.probabilities,focus:lastResult.focus.slice(0,5),pLiability:lastResult.pLiability,pScope:lastResult.pScope,pSpecials:lastResult.pSpecials,pWages:lastResult.pWages,pSurgery:lastResult.pSurgery}:null};
   }
   window.caseAgentTools={
     getOverview(){
       const matter=rawData.matter?.body??{};
-      return {matter:{id:matter.id??'00001-SAPINI',name:matter.display_number??matter.name??'Justin Sapini',status:matter.status??'Unknown',stage:matter.matter_stage?.id??rawData.matter_stages?.sapini_stage??'Unknown'},recordCount:records.length,recordTypes:[...new Set(records.map(record=>record.type))],model:modelSnapshot()};
+      return {matter:{id:matter.id??'00001-SAPINI',name:matter.display_number??matter.name??'Justin Sapini',status:matter.status??'Unknown',stage:matter.matter_stage?.id??rawData.matter_stages?.sapini_stage??'Unknown'},recordCount:records.length,recordTypes:[...new Set(records.map(record=>record.type))],model:{assumptions:{...state.assumptions},latestResult:lastResult?{iterations:lastResult.iterations,mean:lastResult.mean,p10:lastResult.p10,p50:lastResult.p50,p90:lastResult.p90}:null}};
     },
     searchRecords({query='',type='any',limit=10}={}){
       const needle=String(query).trim().toLowerCase();
@@ -424,11 +398,22 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
       window.dispatchEvent(new CustomEvent('case:open-record',{detail:record}));
       return {opened:true,record:{id:record.id,type:record.type,title:record.title,date:record.dateLabel,source:record.source}};
     },
-    getModel(){return modelSnapshot();},
-    getOutcomes(){return modelSnapshot().latestResult;},
-    async addFact(input){
+    getModel({section='inputs'}={}){
+      const snapshot=modelSnapshot();
+      if(section==='inputs')return {method:snapshot.method,assumptions:snapshot.assumptions,facts:snapshot.facts};
+      if(section==='controls')return {controls:snapshot.editableControls};
+      if(section==='estimates')return {reflectsCurrentInputs:!pendingInputs,iterations:lastResult?.iterations??0,probabilities:lastResult?.probabilities??null,nodes:lastResult?Object.fromEntries(Object.entries(lastResult.nodeEstimates).map(([key,{mean,p10,p90,eventRate}])=>[key,{mean,p10,p90,eventRate}])):null};
+      if(section==='priorities')return {method:snapshot.method,focus:lastResult?.focus.map(({group,dimension,...item})=>item)??null};
+      throw new Error('Choose inputs, estimates, priorities or controls.');
+    },
+    getOutcomes(){const result=modelSnapshot().latestResult;if(!result)return null;const {nodeEstimates,...summary}=result;return {...summary,reflectsCurrentInputs:!pendingInputs};},
+    async addFact(input,{actionId}={}){
+      if(actionId){
+        const existing=state.facts.find(item=>item.sourceCallId===actionId);
+        if(existing)return {saved:true,fact:{id:existing.id,text:existing.text,source:existing.source,dimension:existing.dimension,lr:existing.lr,confidence:existing.confidence},simulationCompleted:false,persistence:'Browser local storage',replayed:true};
+      }
       const values=normalizeFact(input);
-      const fact={id:crypto.randomUUID(),...values,seeded:false};
+      const fact={id:crypto.randomUUID(),...values,seeded:false,...(actionId?{sourceCallId:actionId}:{})};
       state.facts.unshift(fact);refreshAfterInputChange();
       const result=await run();
       return {saved:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},simulationCompleted:!!result,persistence:'Browser local storage'};
@@ -441,19 +426,14 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
       return {updated:true,fact:{id:fact.id,text:fact.text,source:fact.source,dimension:fact.dimension,lr:fact.lr,confidence:fact.confidence},simulationCompleted:!!result,persistence:'Browser local storage'};
     },
     async updateAssumption({key,value}){
-      const control=controls.find(item=>item.key===String(key));
-      if(!control)throw new Error('Unsupported assumption key. Use get_case_model to see editable assumptions.');
-      const numeric=Number(value);
-      if(!Number.isFinite(numeric)||numeric<control.min||numeric>control.max)throw new Error(`${control.label} must be between ${control.min} and ${control.max}.`);
-      if(key==='futureLow'&&numeric>state.assumptions.futureHigh)throw new Error('Future care low cannot exceed future care high.');
-      if(key==='futureHigh'&&numeric<state.assumptions.futureLow)throw new Error('Future care high cannot be below future care low.');
-      state.assumptions[key]=numeric;save();renderAssumptions();
+      state.assumptions=validateAssumptionUpdate(state.assumptions,String(key),value);save();renderAssumptions();
+      const numeric=state.assumptions[key];
       const result=await run();
       return {updated:true,key,value:numeric,simulationCompleted:!!result,persistence:'Browser local storage'};
     },
     async runSimulation(){
       const result=await run();
-      return {completed:!!result,...modelSnapshot()};
+      return {completed:!!result,latestResult:window.caseAgentTools.getOutcomes()};
     },
   };
   tabs.forEach((tab,index)=>{
@@ -486,5 +466,5 @@ export function initializeInvestigatorWorkspace({records, rawData}) {
   $('#fact-cancel').addEventListener('click',()=>{editingFactId=null;$('#fact-form').reset();$('#fact-confidence-label').textContent='50%';$('#fact-form-title').textContent='Add a fact';$('#fact-form').querySelector('[type="submit"]').textContent='Save investigator fact';$('#fact-cancel').hidden=true;});
   $('#reset-model').addEventListener('click',()=>{Object.assign(state.assumptions,defaults.assumptions);state.facts=structuredClone(defaults.facts);save();renderAssumptions();renderFacts();renderEvidence(records);renderAnomalies();run();});
   $('#run-simulation').addEventListener('click',run);
-  renderAssumptions();renderFacts();renderAnomalies();renderEvidence(records);run();
+  renderAssumptions();renderFacts();renderAnomalies();renderEvidence(window.caseRecords||[]);run();
 }

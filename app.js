@@ -1,5 +1,5 @@
-import { initializeCaseChat } from './chat.mjs?build=20261002-million';
-import { initializeInvestigatorWorkspace } from './analysis-model.mjs?build=20261002-million';
+import { initializeCaseChat } from './chat.mjs?build=20261002-agent-engine-switch';
+import { initializeInvestigatorWorkspace } from './analysis-model.mjs?build=20261002-expanded-graph';
 
 const categoryConfig = [
   { key: 'notes', label: 'Notes', singular: 'Note', color: '#181818', radius: 3.45 },
@@ -551,10 +551,6 @@ async function main() {
     $('#metric-records-timeline').textContent = numberFormat.format(records.length);
     renderLegend();
     populateCaseReview();
-    initializeCaseChat(rawData).catch((error) => {
-      console.error('Case chat initialization failed:', error);
-      document.querySelector('#chat-status').textContent = 'Chat could not be initialized';
-    });
     setUpPlayback();
     addProviderPreview();
     $('#timeline').max = String(Math.max(0, records.length - 1));
@@ -563,6 +559,10 @@ async function main() {
     const initial = records.find((record) => record.key === 'notes' && /right shoulder surgery still has no date/i.test(record.title)) ?? records[cursorIndex];
     setSelected(initial);
     initializeInvestigatorWorkspace({records, rawData});
+    initializeCaseChat(rawData).catch((error) => {
+      console.error('Case chat initialization failed:', error);
+      document.querySelector('#chat-status').textContent = 'Chat could not be initialized';
+    });
     window.addEventListener('workspace:page-change', event => { if (event.detail.page === 'timeline') ensureTimelineScene(); });
     window.addEventListener('case:open-record', event => {
       document.querySelector('#tab-timeline').click();
@@ -581,3 +581,4 @@ async function main() {
 }
 
 main();
+;

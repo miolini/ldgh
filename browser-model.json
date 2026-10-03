@@ -1,0 +1,23 @@
+{
+  "source_repository": "trymirai/Qwen3.8-27B-S-experimental",
+  "source_revision": "32d4c0422a14353808659f2f2333b207bc1dd12a",
+  "model_id": "Qwen3.8-27B-S-experimental",
+  "status": "operators-verified",
+  "port_runtime": "custom WebGPU",
+  "operator_report": "webgpu-operator-report.json",
+  "weight_format": "Mirai S (2.4 bits per weight)",
+  "model": null,
+  "model_lib": null,
+  "required_features": [
+    "shader-f16"
+  ],
+  "reason": "Compressed projection and vocabulary operators, hybrid attention and the case tokenizer pass browser component checks. Full orchestration and streaming worker are implemented; complete weights are still downloading and full-model generation remains unverified.",
+  "source_model_bytes": 8447545388,
+  "native_mac_minimum_memory_gb": 24,
+  "webllm_version": "0.2.85",
+  "experimental_runtime": "qwen38-client.mjs",
+  "checkpoint_route": "/models/qwen38/vllm/trellis.mirai",
+  "attention_report": "webgpu-attention-report.json",
+  "memory_report": "gpu-memory-report.json",
+  "planned_gpu_bytes": 10083905988
+}
